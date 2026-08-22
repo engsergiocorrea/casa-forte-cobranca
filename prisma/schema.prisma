@@ -7,12 +7,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum AppSource { SIENGE WHATSAPP SYSTEM }
-enum IntegrationEventStatus { RECEIVED PROCESSING PROCESSED FAILED IGNORED }
-enum InstallmentStatus { OPEN PAID CANCELED PARTIAL UNKNOWN }
-enum PaymentSlipStatus { UNKNOWN CONFIRMED REJECTED }
-enum MessageStatus { SCHEDULED QUEUED DRY_RUN SENT DELIVERED READ FAILED CANCELED }
-enum MessageChannel { WHATSAPP }
+enum AppSource {
+  SIENGE
+  WHATSAPP
+  SYSTEM
+}
+enum IntegrationEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+enum InstallmentStatus {
+  OPEN
+  PAID
+  CANCELED
+  PARTIAL
+  UNKNOWN
+}
+enum PaymentSlipStatus {
+  UNKNOWN
+  CONFIRMED
+  REJECTED
+}
+enum MessageStatus {
+  SCHEDULED
+  QUEUED
+  DRY_RUN
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  CANCELED
+}
+enum MessageChannel {
+  WHATSAPP
+}
 
 model Customer {
   id          String          @id @default(cuid())

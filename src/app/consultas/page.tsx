@@ -10,6 +10,8 @@ type Cliente = { nome: string | null; principal: boolean; conjuge: boolean };
 type Contrato = { contratoId: number | null; numero: string | null; situacao: string | null; valor: number | null; receivableBillId: number | null; clientes: Cliente[]; unidades: string[] };
 type Grupo = { empreendimento: string; contratos: Contrato[] };
 type Parcela = { installmentId: number; vencimento: string; saldo: number; saldoFmt: string; paga: boolean; boletoGerado: boolean; etapa: string | null; elegivelHoje: boolean };
+type TemplateInfo = { name: string; found: boolean; status: string | null; bodyParamCount: number | null; hasUrlButton: boolean; urlButtonHasVariable: boolean; error?: string };
+type Preflight = { gate: { appMode: string; outboundEnabled: boolean; dryRun: boolean; allowAllProduction: boolean; allowlistCount: number; credsPresent: boolean }; templates: TemplateInfo[] };
 
 const brl = (v: number | null) => v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -21,22 +23,43 @@ export default function ConsultasPage() {
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState<{ empreendimento: string; contrato: Contrato } | null>(null);
   const [parcelas, setParcelas] = useState<Parcela[] | null>(null);
-  const [acao, setAcao] = useState<{ tipo: "boleto" | "simular"; instId: number; data: any } | null>(null);
+  const [acao, setAcao] = useState<{ tipo: "boleto" | "simular" | "enviar"; instId: number; data: any } | null>(null);
+  const [pre, setPre] = useState<Preflight | null>(null);
+  const [fone, setFone] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
-        const [s, e] = await Promise.all([
+        const [s, e, pf] = await Promise.all([
           fetch("/api/consultas/sienge?action=status").then(r => r.json()),
           fetch("/api/consultas/sienge?action=empreendimentos").then(r => r.json()),
+          fetch("/api/consultas/sienge?action=preflight").then(r => r.json()).catch(() => null),
         ]);
         if (s?.ok) setStatus(s.status);
+        if (pf?.ok) setPre({ gate: pf.gate, templates: pf.templates });
         if (!e?.ok) throw new Error(e?.detail || e?.error || "falha ao carregar");
         setGrupos(e.empreendimentos);
       } catch (err: any) { setErro(String(err?.message ?? err)); }
       finally { setLoading(false); }
     })();
   }, []);
+
+  const envioLiberado = !!pre && pre.gate.outboundEnabled && !pre.gate.dryRun && pre.gate.credsPresent && pre.gate.allowlistCount > 0;
+
+  async function enviarReal(p: Parcela) {
+    const c = aberto!.contrato;
+    const imovel = `${aberto!.empreendimento}${c.unidades.length ? " — " + c.unidades.join(", ") : ""}`;
+    const nome = c.clientes[0]?.nome ?? "cliente";
+    const num = fone.trim();
+    if (!num) { alert("Informe o número do WhatsApp (com DDD) antes de enviar."); return; }
+    if (!confirm(`ENVIO REAL de WhatsApp para ${num}\nCliente: ${nome}\nParcela: ${p.installmentId} · ${p.vencimento} · ${p.saldoFmt}\n\nConfirmar envio?`)) return;
+    setAcao({ tipo: "enviar", instId: p.installmentId, data: "loading" });
+    const d = await fetch("/api/consultas/sienge", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "enviar", billId: c.receivableBillId, installmentId: p.installmentId, nome, imovel, etapa: p.etapa ?? "D0", to: num }),
+    }).then(r => r.json());
+    setAcao({ tipo: "enviar", instId: p.installmentId, data: d });
+  }
 
   async function abrirParcelas(empreendimento: string, contrato: Contrato) {
     setAberto({ empreendimento, contrato }); setParcelas(null); setAcao(null);
@@ -69,6 +92,7 @@ export default function ConsultasPage() {
 
   const chip = (label: string, p?: PingRes) => <span className={p?.ok ? "pill on" : "pill off"} style={{ marginRight: 8 }}>{label}: {p ? (p.ok ? p.count ?? "?" : `HTTP ${p.httpStatus}`) : "…"}</span>;
   const etapaTag = (e: string | null) => e ? <span className={`tag ${e === "D+1" ? "off" : "on"}`}>{e === "D-10" ? "10 dias antes" : e === "D0" ? "vence hoje" : "atrasada (D+1)"}</span> : <span className="tag neu">—</span>;
+  const check = (label: string, ok: boolean, extra?: string) => <span className={`pill ${ok ? "on" : "off"}`}>{ok ? "✅" : "⛔"} {label}{extra ? ` · ${extra}` : ""}</span>;
 
   const termo = busca.trim().toLowerCase();
   const filtrados = (grupos ?? []).map(g => ({ ...g, contratos: termo ? g.contratos.filter(c => (c.numero ?? "").toLowerCase().includes(termo) || c.clientes.some(cl => (cl.nome ?? "").toLowerCase().includes(termo)) || c.unidades.some(u => u.toLowerCase().includes(termo)) || g.empreendimento.toLowerCase().includes(termo)) : g.contratos })).filter(g => g.contratos.length);
@@ -79,8 +103,28 @@ export default function ConsultasPage() {
 
       <section className="panel">
         <p style={{ margin: 0 }}>{chip("Clientes", status?.customers)}{chip("Contratos", status?.contracts)}{chip("Unidades", status?.units)}</p>
-        <p className="note" style={{ marginBottom: 0 }}>Somente leitura · CPF/e-mail/telefone mascarados · envios em <strong>dry-run</strong> (nada é enviado).</p>
+        <p className="note" style={{ marginBottom: 0 }}>Somente leitura · CPF/e-mail/telefone mascarados · {envioLiberado ? <strong style={{ color: "#8d1c0f" }}>ENVIO REAL LIBERADO (só allowlist)</strong> : <>envios em <strong>dry-run</strong> (nada é enviado)</>}.</p>
       </section>
+
+      {pre && (
+        <section className="panel">
+          <h2 style={{ marginTop: 0, marginBottom: 8 }}>Prontidão do envio real</h2>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {check("Master switch (outbound)", pre.gate.outboundEnabled)}
+            {check("Dry-run desligado", !pre.gate.dryRun)}
+            {check("Credenciais Meta", pre.gate.credsPresent)}
+            {check(`Allowlist (${pre.gate.allowlistCount})`, pre.gate.allowlistCount > 0)}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+            {pre.templates.map(t => check(`${t.name}`, t.status === "APPROVED", t.error ? t.error : t.status ?? "não encontrado"))}
+          </div>
+          <p className="note" style={{ marginBottom: 0 }}>
+            {envioLiberado
+              ? "Travas liberadas: o botão “Enviar de verdade” manda WhatsApp real — só para números na allowlist."
+              : "Enquanto algum item estiver vermelho, “Enviar de verdade” cai em dry-run ou é bloqueado. Ajuste no Railway/Meta."}
+          </p>
+        </section>
+      )}
 
       {erro && <section className="panel"><p style={{ color: "#8d1c0f" }}>{erro}</p><p className="note">Se aparecer "painel_sem_senha", defina DASHBOARD_BASIC_USER/PASS no Railway.</p></section>}
       {loading && <section className="panel"><p>Carregando do Sienge…</p></section>}
@@ -125,6 +169,12 @@ export default function ConsultasPage() {
           </div>
           <span className="note">{aberto.contrato.clientes.map(c => c.nome).join(", ")} · {aberto.empreendimento}{aberto.contrato.unidades.length ? " — " + aberto.contrato.unidades.join(", ") : ""}</span>
 
+          <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input placeholder="WhatsApp do cliente (ex.: +5582999999999)" value={fone} onChange={e => setFone(e.target.value)} style={{ minWidth: 260 }} />
+            <span className={`tag ${envioLiberado ? "off" : "neu"}`}>{envioLiberado ? "envio real ligado" : "dry-run"}</span>
+            <span className="note">O número precisa estar na WHATSAPP_ALLOWLIST do Railway.</span>
+          </div>
+
           {!parcelas ? <p style={{ marginTop: 12 }}>Carregando parcelas…</p> : parcelas.length === 0 ? <p className="note" style={{ marginTop: 12 }}>Sem parcelas.</p> : (
             <div style={{ overflowX: "auto", marginTop: 12 }}>
               <table>
@@ -139,7 +189,8 @@ export default function ConsultasPage() {
                       <td>{p.paga ? <span className="tag neu">—</span> : etapaTag(p.etapa)}</td>
                       <td style={{ whiteSpace: "nowrap" }}>
                         {p.boletoGerado && <button className="ghost" onClick={() => verBoleto(p.installmentId)}>Boleto</button>}{" "}
-                        {!p.paga && <button className="ghost" onClick={() => simular(p)}>Simular cobrança</button>}
+                        {!p.paga && <button className="ghost" onClick={() => simular(p)}>Simular</button>}{" "}
+                        {!p.paga && <button className="ghost" style={envioLiberado ? { borderColor: "#8d1c0f", color: "#8d1c0f" } : undefined} onClick={() => enviarReal(p)}>Enviar de verdade</button>}
                       </td>
                     </tr>
                   ))}
@@ -158,6 +209,27 @@ export default function ConsultasPage() {
                     {acao.data.boleto?.linhaDigitavel && <p style={{ fontFamily: "monospace", background: "#f0f0ec", padding: "8px 10px", borderRadius: 8 }}>{acao.data.boleto.linhaDigitavel}</p>}
                   </div>
                 ) : <p style={{ color: "#8d1c0f" }}>{acao.data?.detail || acao.data?.error}</p>
+              ) : acao.tipo === "enviar" ? (
+                acao.data?.ok ? (
+                  <div>
+                    <h3 style={{ marginTop: 0 }}>Envio — parcela {acao.instId}{" "}
+                      {acao.data.enviado
+                        ? <span className="tag" style={{ background: "#0b3d1e", color: "#fff" }}>✅ ENVIADA</span>
+                        : <span className="tag off">🔒 NÃO ENVIADA ({acao.data.motivo})</span>}
+                    </h3>
+                    {acao.data.enviado ? (
+                      <>
+                        <p className="note">Template: {acao.data.template} ({acao.data.templateStatus ?? "?"}) · message id: {acao.data.messageId}</p>
+                        <p className="note" style={{ marginBottom: 0 }}>Boleto no template: {acao.data.boletoNoTemplate ? "sim (botão de link)" : "não — enviar boleto à parte se necessário"}.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="note">A trava de segurança segurou o envio ({acao.data.motivo}). Ajuste as variáveis no Railway para liberar.</p>
+                        <div className="payload" style={{ whiteSpace: "pre-wrap", background: "#0b3d1e" }}>{acao.data.preview}</div>
+                      </>
+                    )}
+                  </div>
+                ) : <p style={{ color: "#8d1c0f" }}>{(acao.data?.error === "template_nao_aprovado" ? "Template não aprovado na Meta: " : acao.data?.error === "bloqueado_seguranca" ? "Bloqueado pela allowlist: " : acao.data?.error === "credenciais_incompletas" ? "Credenciais Meta incompletas: " : acao.data?.error === "meta_erro" ? "Erro da Meta: " : "") + (acao.data?.detail || acao.data?.error)}</p>
               ) : (
                 acao.data?.ok ? (
                   <div>

@@ -3,7 +3,11 @@ import { db } from "./lib/db";
 import { getRedis } from "./lib/redis";
 import { syncInstallment } from "./lib/sienge/sync";
 import { sienge } from "./lib/sienge/client";
+import { normalizePaymentSlip } from "./lib/sienge/mapper";
 import { sendWhatsAppTemplate } from "./lib/whatsapp/client";
+import { getTemplateInfo } from "./lib/whatsapp/templates";
+
+const brl = (n: number) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const conn = getRedis();
 
@@ -29,7 +33,10 @@ new Worker("sienge-events", async job => {
 }, { connection: conn, concurrency: 5 });
 
 new Worker("whatsapp-outbound", async job => {
-  const message = await db.message.findUniqueOrThrow({ where: { id: job.data.messageId }, include: { installment: true, customer: true } });
+  const message = await db.message.findUniqueOrThrow({
+    where: { id: job.data.messageId },
+    include: { installment: { include: { contract: { include: { unit: { include: { project: true } } } } } }, customer: true },
+  });
   if (["SENT","DELIVERED","READ","CANCELED"].includes(message.status)) return;
   if (!message.installment || message.installment.status !== "OPEN" || message.installment.partialPaymentDetected) {
     await db.message.update({ where: { id: message.id }, data: { status: "CANCELED", lastError: "Parcela não elegível no momento do envio" } });
@@ -42,15 +49,26 @@ new Worker("whatsapp-outbound", async job => {
     await db.message.update({ where: { id: message.id }, data: { status: "CANCELED", lastError: "Revalidação Sienge bloqueou envio" } });
     return;
   }
-  const boleto = await sienge.getPaymentSlip(fresh.siengeReceivableBillId, fresh.siengeInstallmentId); // failure = do not send; BullMQ will retry
+  const boletoRaw = await sienge.getPaymentSlip(fresh.siengeReceivableBillId, fresh.siengeInstallmentId); // failure = do not send; BullMQ will retry
+  const boleto = normalizePaymentSlip(boletoRaw);
   const p: any = message.payload || {};
+  // Parâmetros na MESMA ordem do template aprovado ({{1}}..{{4}}):
+  // nome · imóvel (empreendimento — unidade) · vencimento · valor.
+  const unit = message.installment.contract?.unit;
+  const imovel = [unit?.project?.name, unit?.name].filter(Boolean).join(" — ");
+  const valorNum = Number(fresh.currentAmount ?? fresh.originalAmount ?? p.amount ?? 0);
+  const vencimento = new Date(fresh.dueDate).toLocaleDateString("pt-BR", { timeZone: "America/Maceio" });
+  // Boleto vai no botão de URL do template só se o template tiver botão dinâmico.
+  const info = await getTemplateInfo(message.templateName);
+  const urlButtonParam = info.hasUrlButton && info.urlButtonHasVariable && boleto.url ? boleto.url : undefined;
   const result = await sendWhatsAppTemplate({
     to: message.phone, templateName: message.templateName, languageCode: message.languageCode,
-    bodyParameters: [message.customer.name, String(p.amount || fresh.currentAmount || fresh.originalAmount), new Date(fresh.dueDate).toLocaleDateString("pt-BR", { timeZone: "America/Maceio" })]
+    bodyParameters: [message.customer.name, imovel, vencimento, brl(valorNum)],
+    urlButtonParam,
   });
   await db.message.update({
     where: { id: message.id },
-    data: { externalMessageId: result.id, status: result.dryRun ? "DRY_RUN" : "SENT", sentAt: new Date(), payload: { ...(p as object), boletoAvailable: Boolean(boleto) } }
+    data: { externalMessageId: result.id, status: result.dryRun ? "DRY_RUN" : "SENT", sentAt: new Date(), payload: { ...(p as object), boletoAvailable: Boolean(boleto.url), boletoNoTemplate: !!urlButtonParam } }
   });
 }, { connection: conn, concurrency: 3, limiter: { max: 20, duration: 1000 } });
 

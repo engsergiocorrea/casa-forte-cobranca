@@ -2,7 +2,10 @@ import { env } from "../env";
 import { canSendTo, normalizePhone } from "../safety";
 
 export type TemplateParameter = { type: "text"; text: string };
-export type SendTemplateInput = { to: string; templateName: string; languageCode: string; bodyParameters?: string[] };
+// urlButtonParam: valor da variável do BOTÃO de URL do template (ex.: link do
+// boleto), quando o template aprovado tiver um botão de URL dinâmico. Só é
+// enviado se informado — caso contrário a mensagem sai só com o corpo.
+export type SendTemplateInput = { to: string; templateName: string; languageCode: string; bodyParameters?: string[]; urlButtonParam?: string };
 
 export async function sendWhatsAppTemplate(input: SendTemplateInput) {
   const e = env();
@@ -21,16 +24,20 @@ export async function sendWhatsAppTemplate(input: SendTemplateInput) {
   if (!e.WHATSAPP_ACCESS_TOKEN || !e.WHATSAPP_PHONE_NUMBER_ID || e.META_GRAPH_API_VERSION.includes("XX")) {
     throw new Error("Credenciais/versão Meta incompletas.");
   }
-  const components = input.bodyParameters?.length ? [{
-    type: "body",
-    parameters: input.bodyParameters.map(text => ({ type: "text", text }))
-  }] : undefined;
+  const components: any[] = [];
+  if (input.bodyParameters?.length) {
+    components.push({ type: "body", parameters: input.bodyParameters.map(text => ({ type: "text", text })) });
+  }
+  if (input.urlButtonParam) {
+    // Botão de URL dinâmico (o valor é só o trecho variável do link do template).
+    components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: input.urlButtonParam }] });
+  }
   const res = await fetch(`https://graph.facebook.com/${e.META_GRAPH_API_VERSION}/${e.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${e.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       messaging_product: "whatsapp", recipient_type: "individual", to: normalizePhone(input.to).slice(1), type: "template",
-      template: { name: input.templateName, language: { code: input.languageCode }, ...(components ? { components } : {}) }
+      template: { name: input.templateName, language: { code: input.languageCode }, ...(components.length ? { components } : {}) }
     }),
     signal: AbortSignal.timeout(15_000)
   });

@@ -4,7 +4,11 @@ import { sienge, siengePing, extractCount } from "@/lib/sienge/client";
 import { normalizeReceivableBill, normalizeInstallmentsList, normalizePaymentSlip } from "@/lib/sienge/mapper";
 import { daysFromDue } from "@/lib/collection/date";
 import { previewMensagem, templateNameFor, type EtapaRegua } from "@/lib/collection/messages";
+import { sendWhatsAppTemplate } from "@/lib/whatsapp/client";
+import { getTemplateInfo } from "@/lib/whatsapp/templates";
 import { redact, redactText } from "@/lib/redact";
+
+const WA_LANG = () => process.env.WA_TEMPLATE_LANGUAGE || "pt_BR";
 
 const fmtBRL = (n: number) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtData = (d: Date) => isNaN(+d) ? "" : d.toLocaleDateString("pt-BR", { timeZone: "UTC" });
@@ -144,6 +148,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, action, boleto: normalizePaymentSlip(await sienge.getPaymentSlip(billId, installmentId)) });
     }
 
+    // Prontidão do envio real: estado das travas + status dos templates na Meta.
+    // Não expõe segredos — só booleanos e metadados do template.
+    if (action === "preflight") {
+      const e = env();
+      const allowlist = e.WHATSAPP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
+      const nomes = [...new Set([templateNameFor("D-10"), templateNameFor("D0"), templateNameFor("D+1")])];
+      const templates = await Promise.all(nomes.map(getTemplateInfo));
+      return NextResponse.json({
+        ok: true, action,
+        gate: {
+          appMode: e.APP_MODE,
+          outboundEnabled: e.OUTBOUND_MESSAGING_ENABLED,
+          dryRun: e.WHATSAPP_DRY_RUN,
+          allowAllProduction: e.WHATSAPP_ALLOW_ALL_PRODUCTION,
+          allowlistCount: allowlist.length,
+          credsPresent: !!e.WHATSAPP_ACCESS_TOKEN && !!e.WHATSAPP_PHONE_NUMBER_ID && !!e.WHATSAPP_WABA_ID,
+        },
+        templates,
+      });
+    }
+
     return NextResponse.json({ ok: false, error: "acao_desconhecida" }, { status: 400 });
   } catch (e: any) {
     const msg = redactText(String(e?.message ?? e)).slice(0, 300);
@@ -152,17 +177,25 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/consultas/sienge  { action:"simular", billId, installmentId, nome, imovel, etapa }
-// Simula a cobrança de uma parcela: monta a mensagem (com boleto) e aplica o
-// safety gate. Em staging/dry-run NÃO envia nada — só devolve o preview e o
-// motivo do bloqueio. Recebe nome/imóvel no BODY (não na URL) para não pôr PII
-// em query string.
+// POST /api/consultas/sienge
+//   { action:"simular", billId, installmentId, nome, imovel, etapa }
+//   { action:"enviar",  billId, installmentId, nome, imovel, etapa, to }
+// - "simular": dry-run — monta a mensagem + boleto e devolve o preview + o
+//   motivo do bloqueio. NUNCA envia.
+// - "enviar": envio REAL, mas SEMPRE através da trava canSendTo (dentro de
+//   sendWhatsAppTemplate). Enquanto OUTBOUND_MESSAGING_ENABLED=false ou
+//   WHATSAPP_DRY_RUN=true, o retorno vem como dry-run (nada sai). Com as travas
+//   liberadas, só envia se o número estiver na WHATSAPP_ALLOWLIST.
+// Recebe nome/imóvel/telefone no BODY (não na URL) para não pôr PII em query.
 export async function POST(req: NextRequest) {
   const blocked = guard();
   if (blocked) return blocked;
   try {
     const body = await req.json().catch(() => ({}));
-    if (body?.action !== "simular") return NextResponse.json({ ok: false, error: "acao_desconhecida" }, { status: 400 });
+    const acao = body?.action;
+    if (acao !== "simular" && acao !== "enviar") {
+      return NextResponse.json({ ok: false, error: "acao_desconhecida" }, { status: 400 });
+    }
     const billId = Number(body.billId);
     const installmentId = Number(body.installmentId);
     if (!billId || !installmentId) return NextResponse.json({ ok: false, error: "informe_billId_e_installmentId" }, { status: 400 });
@@ -171,21 +204,47 @@ export async function POST(req: NextRequest) {
     const rows = normalizeInstallmentsList(await sienge.getInstallments(billId));
     const p = rows.find((r) => r.installmentId === installmentId);
     if (!p) return NextResponse.json({ ok: false, error: "parcela_nao_encontrada" }, { status: 404 });
+    // Trava financeira: nunca cobrar parcela paga/sem saldo (fonte: Sienge).
+    if (p.paid || p.balanceDue <= 0) return NextResponse.json({ ok: false, error: "parcela_sem_saldo" }, { status: 409 });
 
     const boleto = normalizePaymentSlip(await sienge.getPaymentSlip(billId, installmentId));
     const nome = String(body.nome ?? "cliente").trim().split(/\s+/)[0];
     const dados = { nome, imovel: String(body.imovel ?? ""), vencimento: fmtData(p.dueDate), valor: fmtBRL(p.balanceDue) };
     const preview = previewMensagem(etapa, dados);
-
+    const template = templateNameFor(etapa);
     const e = env();
-    const motivo = !e.OUTBOUND_MESSAGING_ENABLED ? "MASTER_SWITCH_OFF" : e.WHATSAPP_DRY_RUN ? "DRY_RUN" : "PERMITIDO";
+
+    if (acao === "simular") {
+      const motivo = !e.OUTBOUND_MESSAGING_ENABLED ? "MASTER_SWITCH_OFF" : e.WHATSAPP_DRY_RUN ? "DRY_RUN" : "PERMITIDO";
+      return NextResponse.json({ ok: true, action: "simular", enviado: false, motivo, template, preview, boleto, saldo: p.balanceDue, paga: p.paid });
+    }
+
+    // acao === "enviar" — envio real (sempre via trava). Confere estrutura do
+    // template na Meta para mandar exatamente o esperado (corpo + botão boleto).
+    const to = String(body.to ?? "").trim();
+    if (!to) return NextResponse.json({ ok: false, error: "informe_numero" }, { status: 400 });
+    const info = await getTemplateInfo(template);
+    if (info.found && info.status && info.status !== "APPROVED") {
+      return NextResponse.json({ ok: false, error: "template_nao_aprovado", detail: `Template ${template} está ${info.status} na Meta.`, template, templateStatus: info.status });
+    }
+    const urlButtonParam = info.hasUrlButton && info.urlButtonHasVariable && boleto.url ? boleto.url : undefined;
+    const result = await sendWhatsAppTemplate({
+      to, templateName: template, languageCode: WA_LANG(),
+      bodyParameters: [dados.nome, dados.imovel, dados.vencimento, dados.valor],
+      urlButtonParam,
+    });
     return NextResponse.json({
-      ok: true, action: "simular", enviado: false, motivo,
-      template: templateNameFor(etapa), preview,
-      boleto, saldo: p.balanceDue, paga: p.paid,
+      ok: true, action: "enviar",
+      enviado: !result.dryRun,
+      motivo: result.dryRun ? (result as any).reason : "ENVIADO",
+      messageId: result.id, template, templateStatus: info.status,
+      boletoNoTemplate: !!urlButtonParam, boleto, preview,
     });
   } catch (e: any) {
     const msg = redactText(String(e?.message ?? e)).slice(0, 300);
-    return NextResponse.json({ ok: false, error: "error", detail: msg });
+    const status = /bloqueado pela seguran/i.test(msg) ? "bloqueado_seguranca"
+      : /Credenciais/i.test(msg) ? "credenciais_incompletas"
+      : /WhatsApp \d/i.test(msg) ? "meta_erro" : "error";
+    return NextResponse.json({ ok: false, error: status, detail: msg });
   }
 }

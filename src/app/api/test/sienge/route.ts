@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
-import { siengePing, siengeShapeOf } from "@/lib/sienge/client";
+import { siengePing, siengeShapeOf, siengeSampleBillShape } from "@/lib/sienge/client";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,14 @@ export async function GET(req: NextRequest) {
   const base = { subdomain: e.SIENGE_SUBDOMAIN, endpoint };
 
   try {
+    // ?resource=receivable-bill&shape=1 → estrutura do título/parcelas/boleto (amostra).
+    if (resource === "receivable-bill" && req.nextUrl.searchParams.get("shape") === "1") {
+      const s = await siengeSampleBillShape();
+      if (s.httpStatus === 401) return NextResponse.json({ ok: false, status: "authentication_failed", subdomain: e.SIENGE_SUBDOMAIN });
+      if (s.httpStatus === 403) return NextResponse.json({ ok: false, status: "permission_denied", subdomain: e.SIENGE_SUBDOMAIN });
+      if (!s.ok) return NextResponse.json({ ok: false, status: "error", httpStatus: s.httpStatus, subdomain: e.SIENGE_SUBDOMAIN });
+      return NextResponse.json({ ok: true, status: "connected", subdomain: e.SIENGE_SUBDOMAIN, endpoint: "/accounts-receivable/receivable-bills/{id}", shape: s.shape });
+    }
     // ?shape=1 → captura só a ESTRUTURA (chaves+tipos) do 1º registro, sem valores/PII.
     if (req.nextUrl.searchParams.get("shape") === "1") {
       const s = await siengeShapeOf(endpoint);

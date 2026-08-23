@@ -76,6 +76,28 @@ export async function siengeShapeOf(path: string): Promise<{ httpStatus: number;
   return { httpStatus: r.status, ok: r.ok, shape };
 }
 
+// Captura a estrutura do TÍTULO A RECEBER (título/parcelas/boleto) usando um
+// receivableBillId de amostra tirado de um contrato qualquer — só ESTRUTURA,
+// sem valores/PII. É o schema central para o fluxo "boleto -> WhatsApp".
+export async function siengeSampleBillShape(): Promise<{ httpStatus: number; ok: boolean; shape: any; billId: number | null }> {
+  const cr = await fetch(`${baseUrl()}/sales-contracts?limit=1`, {
+    method: "GET", headers: { Accept: "application/json", Authorization: authHeader() },
+    signal: AbortSignal.timeout(15_000), cache: "no-store",
+  });
+  if (!cr.ok) return { httpStatus: cr.status, ok: false, shape: null, billId: null };
+  const cj: any = await cr.json();
+  const contract = Array.isArray(cj) ? cj[0] : (cj?.results?.[0] ?? cj?.data?.[0] ?? cj);
+  const billId = Number(contract?.receivableBillId);
+  if (!billId) return { httpStatus: 200, ok: false, shape: null, billId: null };
+  const br = await fetch(`${baseUrl()}/accounts-receivable/receivable-bills/${billId}`, {
+    method: "GET", headers: { Accept: "application/json", Authorization: authHeader() },
+    signal: AbortSignal.timeout(15_000), cache: "no-store",
+  });
+  let shape: any = null;
+  if (br.ok) { try { shape = describeShape(await br.json(), 4); } catch { /* ignore */ } }
+  return { httpStatus: br.status, ok: br.ok, shape, billId };
+}
+
 // Ping READ-ONLY para diagnóstico de conectividade/autenticação com o Sienge.
 // Faz um GET e devolve SOMENTE { httpStatus, ok, count } — nunca o corpo bruto,
 // credenciais ou o header Authorization. Não lança em erro HTTP (para a rota de

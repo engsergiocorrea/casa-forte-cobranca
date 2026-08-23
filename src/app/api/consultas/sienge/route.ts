@@ -48,6 +48,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, action, status: { customers, contracts, units } });
     }
 
+    // Clientes agrupados por empreendimento (via contratos de venda — read-only).
+    if (action === "empreendimentos") {
+      const raw = await sienge.listSalesContracts(200, 0);
+      const contratos = (Array.isArray(raw) ? raw : raw?.results ?? raw?.data ?? []) as any[];
+      const grupos = new Map<string, any>();
+      for (const c of contratos) {
+        const nome = String(c?.enterpriseName ?? "(sem empreendimento)");
+        if (!grupos.has(nome)) grupos.set(nome, { empreendimento: nome, enterpriseId: c?.enterpriseId ?? null, contratos: [] });
+        grupos.get(nome).contratos.push({
+          contratoId: c?.id ?? null,
+          numero: c?.number ?? null,
+          situacao: c?.situation ?? null,
+          valor: c?.totalSellingValue ?? c?.value ?? null,
+          receivableBillId: c?.receivableBillId ?? null,
+          dataContrato: c?.contractDate ?? null,
+          clientes: (Array.isArray(c?.salesContractCustomers) ? c.salesContractCustomers : [])
+            .map((x: any) => ({ nome: x?.name ?? null, principal: !!x?.main, conjuge: !!x?.spouse })),
+          unidades: (Array.isArray(c?.salesContractUnits) ? c.salesContractUnits : [])
+            .map((x: any) => x?.name).filter(Boolean),
+        });
+      }
+      const lista = [...grupos.values()].sort((a, b) => a.empreendimento.localeCompare(b.empreendimento));
+      // redige por segurança (nomes ficam visíveis; CPF/e-mail/telefone não vêm aqui).
+      return NextResponse.json({ ok: true, action, empreendimentos: redact(lista) });
+    }
+
     if (action === "customers" || action === "sales-contracts" || action === "units") {
       const limit = clampLimit(q.get("limit"));
       const offset = Math.max(Number(q.get("offset") ?? 0) || 0, 0);

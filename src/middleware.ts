@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
-  if (path.startsWith("/api/webhooks/") || path === "/api/health") return NextResponse.next();
+  // Rotas com autenticação própria (Bearer/token) — não passam pelo Basic Auth
+  // do painel para não haver conflito no header Authorization.
+  if (
+    path.startsWith("/api/webhooks/") ||
+    path === "/api/health" ||
+    path.startsWith("/api/test/") ||
+    path.startsWith("/api/internal/")
+  ) return NextResponse.next();
   const user = process.env.DASHBOARD_BASIC_USER;
   const pass = process.env.DASHBOARD_BASIC_PASS;
   if (!user || !pass) return NextResponse.next();

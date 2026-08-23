@@ -20,3 +20,16 @@ describe("mensagens de cobrança", () => {
     expect(c).toContain("em aberto");
   });
 });
+
+import { normalizePaymentSlip, normalizeInstallmentRow } from "../src/lib/sienge/mapper";
+describe("mapper de parcela e boleto (schema real)", () => {
+  it("boleto: extrai url e linha digitável de results[]", () => {
+    const b = normalizePaymentSlip({ results: [{ urlReport: "https://x/boleto.pdf", digitableNumber: "23790.001" }] });
+    expect(b.url).toBe("https://x/boleto.pdf");
+    expect(b.linhaDigitavel).toBe("23790.001");
+  });
+  it("parcela: saldo=0 marca paga; usa balanceDue e generatedBoleto", () => {
+    const p = normalizeInstallmentRow({ receivableBillId: 40, installmentId: 2, dueDate: "2026-09-10", balanceDue: 0, generatedBoleto: true });
+    expect(p.paid).toBe(true); expect(p.generatedBoleto).toBe(true); expect(p.installmentId).toBe(2);
+  });
+});

@@ -47,6 +47,17 @@ export function normalizeInstallmentRow(x: any): NormalizedInstallmentRow {
   };
 }
 
+// Boleto vindo de GET /payment-slip-notification?billReceivableId=..&installmentId=..
+// (schema real 23/08/2026): results[] = { urlReport, digitableNumber, parameter1207 }.
+export type NormalizedBoleto = { url: string | null; linhaDigitavel: string | null };
+export function normalizePaymentSlip(payload: any): NormalizedBoleto {
+  const rows = Array.isArray(payload) ? payload : (payload?.results ?? payload?.data ?? []);
+  const it = (Array.isArray(rows) ? rows[0] : rows) ?? {};
+  const url = first(it?.urlReport, it?.url, it?.reportUrl);
+  const linha = first(it?.digitableNumber, it?.digitableLine, it?.barCode);
+  return { url: url ? String(url) : null, linhaDigitavel: linha ? String(linha) : null };
+}
+
 export function normalizeInstallmentsList(payload: any): NormalizedInstallmentRow[] {
   const rows = Array.isArray(payload) ? payload : (payload?.results ?? payload?.data ?? payload?.installments ?? []);
   return (rows as any[]).map(normalizeInstallmentRow).filter(r => Number.isFinite(r.installmentId));

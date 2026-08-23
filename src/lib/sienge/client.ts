@@ -26,6 +26,9 @@ export const sienge = {
   getSalesContract: (id: number) => request<any>(`/sales-contracts/${id}`),
   getUnit: (id: number) => request<any>(`/units/${id}`),
   getReceivableBill: (billId: number) => request<any>(`/accounts-receivable/receivable-bills/${billId}`),
+  // Parcelas de um título (schema real: results[] com installmentId/dueDate/balanceDue/generatedBoleto).
+  getInstallments: (billId: number) => request<any>(`/accounts-receivable/receivable-bills/${billId}/installments`),
+  // 2ª via do boleto (schema real: results[] com urlReport/digitableNumber).
   getPaymentSlip: (billId: number, installmentId: number) => request<any>(`/payment-slip-notification?billReceivableId=${billId}&installmentId=${installmentId}`),
   // Listagens read-only (paginadas) para a página de consultas em staging.
   listCustomers: (limit = 5, offset = 0) => request<any>(`/customers?limit=${limit}&offset=${offset}`),

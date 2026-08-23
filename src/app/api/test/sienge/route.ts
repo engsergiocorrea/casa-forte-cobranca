@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
-import { siengePing } from "@/lib/sienge/client";
+import { siengePing, siengeShapeOf } from "@/lib/sienge/client";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,14 @@ export async function GET(req: NextRequest) {
   const base = { subdomain: e.SIENGE_SUBDOMAIN, endpoint };
 
   try {
+    // ?shape=1 → captura só a ESTRUTURA (chaves+tipos) do 1º registro, sem valores/PII.
+    if (req.nextUrl.searchParams.get("shape") === "1") {
+      const s = await siengeShapeOf(endpoint);
+      if (s.httpStatus === 401) return NextResponse.json({ ok: false, status: "authentication_failed", ...base });
+      if (s.httpStatus === 403) return NextResponse.json({ ok: false, status: "permission_denied", ...base });
+      if (!s.ok) return NextResponse.json({ ok: false, status: "error", httpStatus: s.httpStatus, ...base });
+      return NextResponse.json({ ok: true, status: "connected", ...base, shape: s.shape });
+    }
     const r = await siengePing(endpoint);
     if (r.httpStatus === 401) return NextResponse.json({ ok: false, status: "authentication_failed", ...base });
     if (r.httpStatus === 403) return NextResponse.json({ ok: false, status: "permission_denied", ...base });

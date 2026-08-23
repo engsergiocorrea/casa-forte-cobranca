@@ -43,6 +43,39 @@ export function extractCount(json: any): number | null {
   return null;
 }
 
+// Descreve a ESTRUTURA de um valor (chaves + tipos), SEM os valores — para
+// capturar o schema real do Sienge sem expor PII. Segue a regra do CLAUDE.md:
+// capturar estrutura real antes de mapear/tipar, nunca supor campos.
+export function describeShape(value: any, depth = 3): any {
+  if (value === null || value === undefined) return "null";
+  if (Array.isArray(value)) return depth <= 0 ? "array" : [describeShape(value[0], depth - 1)];
+  const t = typeof value;
+  if (t !== "object") return t; // "string" | "number" | "boolean"
+  if (depth <= 0) return "object";
+  const out: Record<string, any> = {};
+  for (const k of Object.keys(value)) out[k] = describeShape(value[k], depth - 1);
+  return out;
+}
+
+// Pega o primeiro item de uma listagem read-only e devolve só a estrutura.
+export async function siengeShapeOf(path: string): Promise<{ httpStatus: number; ok: boolean; shape: any }> {
+  const r = await fetch(`${baseUrl()}${path}`, {
+    method: "GET",
+    headers: { Accept: "application/json", Authorization: authHeader() },
+    signal: AbortSignal.timeout(15_000),
+    cache: "no-store",
+  });
+  let shape: any = null;
+  if (r.ok) {
+    try {
+      const j: any = await r.json();
+      const item = Array.isArray(j) ? j[0] : (j?.results?.[0] ?? j?.data?.[0] ?? j);
+      shape = describeShape(item, 4);
+    } catch { /* corpo não-JSON */ }
+  }
+  return { httpStatus: r.status, ok: r.ok, shape };
+}
+
 // Ping READ-ONLY para diagnóstico de conectividade/autenticação com o Sienge.
 // Faz um GET e devolve SOMENTE { httpStatus, ok, count } — nunca o corpo bruto,
 // credenciais ou o header Authorization. Não lança em erro HTTP (para a rota de

@@ -21,6 +21,12 @@ const schema = z.object({
   WHATSAPP_ACCESS_TOKEN: z.string().default(""),
   WHATSAPP_VERIFY_TOKEN: z.string().default(""),
   WHATSAPP_APP_SECRET: z.string().default(""),
+  // Canal de envio: "evolution" (WhatsApp não-oficial, mesma do portal/compras —
+  // sem template) ou "meta" (Cloud API oficial, exige template aprovado).
+  WHATSAPP_PROVIDER: z.enum(["evolution", "meta"]).default("evolution"),
+  EVOLUTION_API_URL: z.string().default(""),
+  EVOLUTION_API_KEY: z.string().default(""),
+  EVOLUTION_INSTANCE: z.string().default("casaforte"),
   CRON_SECRET: z.string().min(16).default("CHANGE_ME_CHANGE_ME"),
 });
 

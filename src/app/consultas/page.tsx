@@ -12,7 +12,7 @@ type Contrato = { contratoId: number | null; numero: string | null; situacao: st
 type Grupo = { empreendimento: string; contratos: Contrato[] };
 type Parcela = { installmentId: number; vencimento: string; saldo: number; saldoFmt: string; paga: boolean; boletoGerado: boolean; etapa: string | null; elegivelHoje: boolean };
 type TemplateInfo = { name: string; found: boolean; status: string | null; bodyParamCount: number | null; hasUrlButton: boolean; urlButtonHasVariable: boolean; error?: string };
-type Preflight = { gate: { appMode: string; outboundEnabled: boolean; dryRun: boolean; allowAllProduction: boolean; allowlistCount: number; credsPresent: boolean }; templates: TemplateInfo[] };
+type Preflight = { gate: { provider: "evolution" | "meta"; appMode: string; outboundEnabled: boolean; dryRun: boolean; allowAllProduction: boolean; allowlistCount: number; credsPresent: boolean }; templates: TemplateInfo[] };
 
 const brl = (v: number | null) => v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -117,20 +117,23 @@ export default function ConsultasPage() {
 
       {pre && (
         <section className="panel">
-          <h2 style={{ marginTop: 0, marginBottom: 8 }}>Prontidão do envio real</h2>
+          <h2 style={{ marginTop: 0, marginBottom: 8 }}>Prontidão do envio real <span className="tag neu">canal: {pre.gate.provider === "evolution" ? "Evolution" : "Meta oficial"}</span></h2>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {check("Master switch (outbound)", pre.gate.outboundEnabled)}
             {check("Dry-run desligado", !pre.gate.dryRun)}
-            {check("Credenciais Meta", pre.gate.credsPresent)}
+            {check(pre.gate.provider === "evolution" ? "Credenciais Evolution" : "Credenciais Meta", pre.gate.credsPresent)}
             {check(`Allowlist (${pre.gate.allowlistCount})`, pre.gate.allowlistCount > 0)}
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-            {pre.templates.map(t => check(`${t.name}`, t.status === "APPROVED", t.error ? t.error : t.status ?? "não encontrado"))}
-          </div>
+          {pre.gate.provider === "meta" && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+              {pre.templates.map(t => check(`${t.name}`, t.status === "APPROVED", t.error ? t.error : t.status ?? "não encontrado"))}
+            </div>
+          )}
           <p className="note" style={{ marginBottom: 0 }}>
+            {pre.gate.provider === "evolution" ? "Via Evolution (texto livre + boleto), sem template. " : ""}
             {envioLiberado
               ? "Travas liberadas: o botão “Enviar de verdade” manda WhatsApp real — só para números na allowlist."
-              : "Enquanto algum item estiver vermelho, “Enviar de verdade” cai em dry-run ou é bloqueado. Ajuste no Railway/Meta."}
+              : "Enquanto algum item estiver vermelho, “Enviar de verdade” cai em dry-run ou é bloqueado. Ajuste no Railway."}
           </p>
         </section>
       )}
@@ -239,10 +242,17 @@ export default function ConsultasPage() {
                         : <span className="tag off">🔒 NÃO ENVIADA ({acao.data.motivo})</span>}
                     </h3>
                     {acao.data.enviado ? (
-                      <>
-                        <p className="note">Template: {acao.data.template} ({acao.data.templateStatus ?? "?"}) · message id: {acao.data.messageId}</p>
-                        <p className="note" style={{ marginBottom: 0 }}>Boleto no template: {acao.data.boletoNoTemplate ? "sim (botão de link)" : "não — enviar boleto à parte se necessário"}.</p>
-                      </>
+                      acao.data.provider === "evolution" ? (
+                        <>
+                          <p className="note">Enviado via Evolution · message id: {acao.data.messageId ?? "—"}</p>
+                          <p className="note" style={{ marginBottom: 0 }}>Boleto (PDF): {acao.data.boletoEnviado ? "enviado como documento" : "não enviado como PDF — o link e a linha digitável vão no texto"}.</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="note">Template: {acao.data.template} ({acao.data.templateStatus ?? "?"}) · message id: {acao.data.messageId}</p>
+                          <p className="note" style={{ marginBottom: 0 }}>Boleto no template: {acao.data.boletoNoTemplate ? "sim (botão de link)" : "não — enviar boleto à parte se necessário"}.</p>
+                        </>
+                      )
                     ) : (
                       <>
                         <p className="note">A trava de segurança segurou o envio ({acao.data.motivo}). Ajuste as variáveis no Railway para liberar.</p>

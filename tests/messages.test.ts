@@ -19,6 +19,13 @@ describe("mensagens de cobrança", () => {
     expect(b).toContain("vence hoje");
     expect(c).toContain("em aberto");
   });
+  it("todas as etapas avisam a senha do boleto (5 primeiros dígitos do CPF/CNPJ)", () => {
+    for (const etapa of ["D-10", "D0", "D+1"] as const) {
+      const t = previewMensagem(etapa, d);
+      expect(t).toMatch(/5 primeiros d[íi]gitos/i);
+      expect(t).toMatch(/CPF/i);
+    }
+  });
 });
 
 import { normalizePaymentSlip, normalizeInstallmentRow } from "../src/lib/sienge/mapper";

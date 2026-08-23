@@ -25,13 +25,18 @@ export function templateNameFor(etapa: EtapaRegua): string {
   return process.env.WA_TEMPLATE_D_PLUS_1 || "cf_cobranca_atraso_1d";
 }
 
+// Aviso da senha do boleto (o PDF do banco abre com os 5 primeiros dígitos do
+// CPF/CNPJ do titular). Vai em todas as etapas.
+export const SENHA_BOLETO = "🔒 A senha para abrir o boleto são os 5 primeiros dígitos do seu CPF (ou CNPJ).";
+
 // Preview textual (o que o cliente veria) — para o dry-run e para conferência.
+// No canal Evolution é EXATAMENTE o texto enviado (+ link/PDF do boleto).
 export function previewMensagem(etapa: EtapaRegua, d: DadosCobranca): string {
   if (etapa === "D-10") {
-    return `Olá, ${d.nome}! Aqui é da Casa Forte. A parcela do seu imóvel ${d.imovel} vence em ${d.vencimento} (faltam 10 dias), no valor de ${d.valor}. Segue o boleto para pagamento. Qualquer dúvida, é só responder por aqui.`;
+    return `Olá, ${d.nome}! Aqui é da Casa Forte. A parcela do seu imóvel ${d.imovel} vence em ${d.vencimento} (faltam 10 dias), no valor de ${d.valor}. Segue o boleto para pagamento. ${SENHA_BOLETO} Qualquer dúvida, é só responder por aqui.`;
   }
   if (etapa === "D0") {
-    return `Olá, ${d.nome}! A parcela do seu imóvel ${d.imovel} vence hoje (${d.vencimento}), no valor de ${d.valor}. Segue o boleto. Se o pagamento já foi feito, por favor desconsidere. Obrigado! — Casa Forte`;
+    return `Olá, ${d.nome}! A parcela do seu imóvel ${d.imovel} vence hoje (${d.vencimento}), no valor de ${d.valor}. Segue o boleto. ${SENHA_BOLETO} Se o pagamento já foi feito, por favor desconsidere. Obrigado! — Casa Forte`;
   }
-  return `Olá, ${d.nome}. A parcela do seu imóvel ${d.imovel}, com vencimento em ${d.vencimento} (${d.valor}), consta em aberto. Segue o boleto atualizado. Se já efetuou o pagamento, desconsidere; para negociar, fale com a gente. — Casa Forte`;
+  return `Olá, ${d.nome}. A parcela do seu imóvel ${d.imovel}, com vencimento em ${d.vencimento} (${d.valor}), consta em aberto. Segue o boleto atualizado. ${SENHA_BOLETO} Se já efetuou o pagamento, desconsidere; para negociar, fale com a gente. — Casa Forte`;
 }

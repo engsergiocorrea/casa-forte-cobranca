@@ -6,6 +6,8 @@ import { daysFromDue } from "@/lib/collection/date";
 import { previewMensagem, templateNameFor, type EtapaRegua } from "@/lib/collection/messages";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/client";
 import { getTemplateInfo } from "@/lib/whatsapp/templates";
+import { evolutionSendText, evolutionSendDocument } from "@/lib/whatsapp/evolution";
+import { canSendTo } from "@/lib/safety";
 import { redact, redactText } from "@/lib/redact";
 
 const WA_LANG = () => process.env.WA_TEMPLATE_LANGUAGE || "pt_BR";
@@ -170,17 +172,24 @@ export async function GET(req: NextRequest) {
     if (action === "preflight") {
       const e = env();
       const allowlist = e.WHATSAPP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
-      const nomes = [...new Set([templateNameFor("D-10"), templateNameFor("D0"), templateNameFor("D+1")])];
-      const templates = await Promise.all(nomes.map(getTemplateInfo));
+      const provider = e.WHATSAPP_PROVIDER;
+      // Templates só importam no canal Meta; Evolution manda texto livre.
+      const templates = provider === "meta"
+        ? await Promise.all([...new Set([templateNameFor("D-10"), templateNameFor("D0"), templateNameFor("D+1")])].map(getTemplateInfo))
+        : [];
+      const credsPresent = provider === "meta"
+        ? !!e.WHATSAPP_ACCESS_TOKEN && !!e.WHATSAPP_PHONE_NUMBER_ID && !!e.WHATSAPP_WABA_ID
+        : !!e.EVOLUTION_API_URL && !!e.EVOLUTION_API_KEY;
       return NextResponse.json({
         ok: true, action,
         gate: {
+          provider,
           appMode: e.APP_MODE,
           outboundEnabled: e.OUTBOUND_MESSAGING_ENABLED,
           dryRun: e.WHATSAPP_DRY_RUN,
           allowAllProduction: e.WHATSAPP_ALLOW_ALL_PRODUCTION,
           allowlistCount: allowlist.length,
-          credsPresent: !!e.WHATSAPP_ACCESS_TOKEN && !!e.WHATSAPP_PHONE_NUMBER_ID && !!e.WHATSAPP_WABA_ID,
+          credsPresent,
         },
         templates,
       });
@@ -236,10 +245,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, action: "simular", enviado: false, motivo, template, preview, boleto, saldo: p.balanceDue, paga: p.paid });
     }
 
-    // acao === "enviar" — envio real (sempre via trava). Confere estrutura do
-    // template na Meta para mandar exatamente o esperado (corpo + botão boleto).
+    // acao === "enviar" — envio real, SEMPRE atrás da trava canSendTo.
     const to = String(body.to ?? "").trim();
     if (!to) return NextResponse.json({ ok: false, error: "informe_numero" }, { status: 400 });
+    const provider = e.WHATSAPP_PROVIDER;
+
+    // Trava única (independe do canal): master switch, dry-run e allowlist.
+    const allowlist = e.WHATSAPP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
+    const gate = canSendTo(to, {
+      appMode: e.APP_MODE, outboundEnabled: e.OUTBOUND_MESSAGING_ENABLED, dryRun: e.WHATSAPP_DRY_RUN,
+      allowAllProduction: e.WHATSAPP_ALLOW_ALL_PRODUCTION, allowlist,
+    });
+    if (!gate.allowed) {
+      return NextResponse.json({ ok: true, action: "enviar", enviado: false, motivo: gate.reason, provider, template, preview, boleto });
+    }
+
+    if (provider === "evolution") {
+      // Texto livre (sem template) + link/linha do boleto; PDF como documento (best-effort).
+      const texto = `${preview}${boleto.url ? `\n\nBoleto: ${boleto.url}` : ""}${boleto.linhaDigitavel ? `\nLinha digitável: ${boleto.linhaDigitavel}` : ""}`;
+      const r = await evolutionSendText({ to, text: texto });
+      if (!r.success) return NextResponse.json({ ok: false, error: "evolution_erro", detail: redactText(String(r.error ?? "")).slice(0, 200), provider });
+      let boletoEnviado = false;
+      if (boleto.url) {
+        const doc = await evolutionSendDocument({ to, mediaUrl: boleto.url, fileName: `boleto-${installmentId}.pdf`, caption: `Boleto — ${dados.imovel}` });
+        boletoEnviado = !!doc.success;
+      }
+      return NextResponse.json({ ok: true, action: "enviar", enviado: true, motivo: "ENVIADO", provider, messageId: r.messageId, boletoEnviado, boleto, preview });
+    }
+
+    // provider === "meta" — Cloud API oficial: confere template aprovado.
     const info = await getTemplateInfo(template);
     if (info.found && info.status && info.status !== "APPROVED") {
       return NextResponse.json({ ok: false, error: "template_nao_aprovado", detail: `Template ${template} está ${info.status} na Meta.`, template, templateStatus: info.status });
@@ -251,7 +285,7 @@ export async function POST(req: NextRequest) {
       urlButtonParam,
     });
     return NextResponse.json({
-      ok: true, action: "enviar",
+      ok: true, action: "enviar", provider,
       enviado: !result.dryRun,
       motivo: result.dryRun ? (result as any).reason : "ENVIADO",
       messageId: result.id, template, templateStatus: info.status,

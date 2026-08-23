@@ -16,6 +16,42 @@ export type NormalizedInstallment = {
   partial: boolean;
 };
 
+// Parcela vinda de GET /accounts-receivable/receivable-bills/{billId}/installments
+// (schema real capturado em 23/08/2026):
+//   { receivableBillId, installmentId, carrierId, conditionTypeId, dueDate,
+//     balanceDue, generatedBoleto }
+// Regra: `balanceDue` é o SALDO oficial do Sienge — não recalcular. Cobrança só
+// quando saldo > 0. `generatedBoleto` indica se o boleto já foi emitido.
+export type NormalizedInstallmentRow = {
+  billId: number;
+  installmentId: number;
+  dueDate: Date;
+  balanceDue: number;
+  generatedBoleto: boolean;
+  paid: boolean;
+  carrierId?: number;
+  conditionTypeId?: string;
+};
+
+export function normalizeInstallmentRow(x: any): NormalizedInstallmentRow {
+  const balanceDue = Number(first(x?.balanceDue, x?.balance, 0));
+  return {
+    billId: Number(first(x?.receivableBillId, x?.billId)),
+    installmentId: Number(first(x?.installmentId, x?.id, x?.number)),
+    dueDate: parseSiengeDate(first(x?.dueDate, x?.dateDue, x?.expirationDate)),
+    balanceDue,
+    generatedBoleto: Boolean(first(x?.generatedBoleto, x?.boletoGenerated, false)),
+    paid: balanceDue === 0,
+    carrierId: x?.carrierId != null ? Number(x.carrierId) : undefined,
+    conditionTypeId: x?.conditionTypeId != null ? String(x.conditionTypeId) : undefined,
+  };
+}
+
+export function normalizeInstallmentsList(payload: any): NormalizedInstallmentRow[] {
+  const rows = Array.isArray(payload) ? payload : (payload?.results ?? payload?.data ?? payload?.installments ?? []);
+  return (rows as any[]).map(normalizeInstallmentRow).filter(r => Number.isFinite(r.installmentId));
+}
+
 export function normalizeReceivableBill(payload: any, wantedInstallmentId: number): NormalizedInstallment {
   const root = Array.isArray(payload) ? payload[0] : payload;
   const installments = arr(first(root?.installments, root?.receivableInstallments, root?.parcels));

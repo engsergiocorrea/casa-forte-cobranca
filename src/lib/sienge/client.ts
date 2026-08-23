@@ -27,6 +27,10 @@ export const sienge = {
   getUnit: (id: number) => request<any>(`/units/${id}`),
   getReceivableBill: (billId: number) => request<any>(`/accounts-receivable/receivable-bills/${billId}`),
   getPaymentSlip: (billId: number, installmentId: number) => request<any>(`/payment-slip-notification?billReceivableId=${billId}&installmentId=${installmentId}`),
+  // Listagens read-only (paginadas) para a página de consultas em staging.
+  listCustomers: (limit = 5, offset = 0) => request<any>(`/customers?limit=${limit}&offset=${offset}`),
+  listSalesContracts: (limit = 5, offset = 0) => request<any>(`/sales-contracts?limit=${limit}&offset=${offset}`),
+  listUnits: (limit = 5, offset = 0) => request<any>(`/units?limit=${limit}&offset=${offset}`),
 };
 
 // Extrai um "count" de forma defensiva, SEM assumir o schema do Sienge

@@ -1,21 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 
-// Página de acompanhamento e consultas do Sienge (staging).
-// READ-ONLY, PII redigida no servidor, protegida pelo Basic Auth do middleware.
+// Consultas do Sienge (staging). READ-ONLY, PII redigida, atrás do Basic Auth.
+// Clientes por empreendimento → parcelas de um contrato → boleto + simulação
+// de cobrança (dry-run: mostra a mensagem que SERIA enviada, sem enviar).
 
-type PingRes = { httpStatus: number; ok: boolean; count: number | null };
+type PingRes = { ok: boolean; httpStatus: number; count: number | null };
 type Cliente = { nome: string | null; principal: boolean; conjuge: boolean };
-type Contrato = { contratoId: number | null; numero: string | null; situacao: string | null; valor: number | null; receivableBillId: number | null; dataContrato: string | null; clientes: Cliente[]; unidades: string[] };
-type Grupo = { empreendimento: string; enterpriseId: number | null; contratos: Contrato[] };
+type Contrato = { contratoId: number | null; numero: string | null; situacao: string | null; valor: number | null; receivableBillId: number | null; clientes: Cliente[]; unidades: string[] };
+type Grupo = { empreendimento: string; contratos: Contrato[] };
+type Parcela = { installmentId: number; vencimento: string; saldo: number; saldoFmt: string; paga: boolean; boletoGerado: boolean; etapa: string | null; elegivelHoje: boolean };
 
 const brl = (v: number | null) => v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-function situacaoPill(s: string | null) {
-  const t = (s ?? "").toLowerCase();
-  const cls = /cancel/.test(t) ? "off" : /emit|ativ|vend|assinad/.test(t) ? "on" : "neu";
-  return <span className={`tag ${cls}`}>{s ?? "—"}</span>;
-}
 
 export default function ConsultasPage() {
   const [status, setStatus] = useState<{ customers: PingRes; contracts: PingRes; units: PingRes } | null>(null);
@@ -23,8 +19,9 @@ export default function ConsultasPage() {
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
-  const [detalhe, setDetalhe] = useState<any>(null);
-  const [detalheLabel, setDetalheLabel] = useState("");
+  const [aberto, setAberto] = useState<{ empreendimento: string; contrato: Contrato } | null>(null);
+  const [parcelas, setParcelas] = useState<Parcela[] | null>(null);
+  const [acao, setAcao] = useState<{ tipo: "boleto" | "simular"; instId: number; data: any } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -34,65 +31,70 @@ export default function ConsultasPage() {
           fetch("/api/consultas/sienge?action=empreendimentos").then(r => r.json()),
         ]);
         if (s?.ok) setStatus(s.status);
-        if (!e?.ok) throw new Error(e?.detail || e?.error || "falha ao carregar empreendimentos");
+        if (!e?.ok) throw new Error(e?.detail || e?.error || "falha ao carregar");
         setGrupos(e.empreendimentos);
       } catch (err: any) { setErro(String(err?.message ?? err)); }
       finally { setLoading(false); }
     })();
   }, []);
 
-  async function verTitulo(billId: number | null) {
-    if (!billId) return;
-    setDetalhe("loading"); setDetalheLabel(`Título ${billId}`);
+  async function abrirParcelas(empreendimento: string, contrato: Contrato) {
+    setAberto({ empreendimento, contrato }); setParcelas(null); setAcao(null);
+    if (!contrato.receivableBillId) { setParcelas([]); return; }
     try {
-      const d = await fetch(`/api/consultas/sienge?action=bill&billId=${billId}`).then(r => r.json());
-      if (!d.ok) throw new Error(d.detail || d.error);
-      setDetalhe(d);
-    } catch (e: any) { setDetalhe({ erro: String(e?.message ?? e) }); }
+      const d = await fetch(`/api/consultas/sienge?action=parcelas&billId=${contrato.receivableBillId}`).then(r => r.json());
+      setParcelas(d.ok ? d.parcelas : []);
+      if (!d.ok) setErro(d.detail || d.error);
+    } catch (e: any) { setErro(String(e?.message ?? e)); setParcelas([]); }
   }
 
-  const chip = (label: string, p?: PingRes) => (
-    <span className={p?.ok ? "pill on" : "pill off"} style={{ marginRight: 8 }}>{label}: {p ? (p.ok ? p.count ?? "?" : `HTTP ${p.httpStatus}`) : "…"}</span>
-  );
+  async function verBoleto(instId: number) {
+    setAcao({ tipo: "boleto", instId, data: "loading" });
+    const billId = aberto!.contrato.receivableBillId;
+    const d = await fetch(`/api/consultas/sienge?action=boleto&billId=${billId}&installmentId=${instId}`).then(r => r.json());
+    setAcao({ tipo: "boleto", instId, data: d });
+  }
+
+  async function simular(p: Parcela) {
+    setAcao({ tipo: "simular", instId: p.installmentId, data: "loading" });
+    const c = aberto!.contrato;
+    const imovel = `${aberto!.empreendimento}${c.unidades.length ? " — " + c.unidades.join(", ") : ""}`;
+    const nome = c.clientes[0]?.nome ?? "cliente";
+    const d = await fetch("/api/consultas/sienge", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "simular", billId: c.receivableBillId, installmentId: p.installmentId, nome, imovel, etapa: p.etapa ?? "D0" }),
+    }).then(r => r.json());
+    setAcao({ tipo: "simular", instId: p.installmentId, data: d });
+  }
+
+  const chip = (label: string, p?: PingRes) => <span className={p?.ok ? "pill on" : "pill off"} style={{ marginRight: 8 }}>{label}: {p ? (p.ok ? p.count ?? "?" : `HTTP ${p.httpStatus}`) : "…"}</span>;
+  const etapaTag = (e: string | null) => e ? <span className={`tag ${e === "D+1" ? "off" : "on"}`}>{e === "D-10" ? "10 dias antes" : e === "D0" ? "vence hoje" : "atrasada (D+1)"}</span> : <span className="tag neu">—</span>;
 
   const termo = busca.trim().toLowerCase();
-  const gruposFiltrados = (grupos ?? [])
-    .map(g => ({ ...g, contratos: termo ? g.contratos.filter(c =>
-      (c.numero ?? "").toLowerCase().includes(termo) ||
-      c.clientes.some(cl => (cl.nome ?? "").toLowerCase().includes(termo)) ||
-      c.unidades.some(u => u.toLowerCase().includes(termo)) ||
-      g.empreendimento.toLowerCase().includes(termo)) : g.contratos }))
-    .filter(g => g.contratos.length > 0);
-
-  const totalContratos = (grupos ?? []).reduce((n, g) => n + g.contratos.length, 0);
+  const filtrados = (grupos ?? []).map(g => ({ ...g, contratos: termo ? g.contratos.filter(c => (c.numero ?? "").toLowerCase().includes(termo) || c.clientes.some(cl => (cl.nome ?? "").toLowerCase().includes(termo)) || c.unidades.some(u => u.toLowerCase().includes(termo)) || g.empreendimento.toLowerCase().includes(termo)) : g.contratos })).filter(g => g.contratos.length);
 
   return (
     <main>
-      <header>
-        <div><small>CASA FORTE · STAGING</small><h1>Consultas Sienge</h1></div>
-        <a href="/" style={{ fontSize: 14 }}>← Dashboard</a>
-      </header>
+      <header><div><small>CASA FORTE · STAGING</small><h1>Consultas & Cobrança</h1></div><a href="/" style={{ fontSize: 14 }}>← Dashboard</a></header>
 
       <section className="panel">
         <p style={{ margin: 0 }}>{chip("Clientes", status?.customers)}{chip("Contratos", status?.contracts)}{chip("Unidades", status?.units)}</p>
-        <p className="note" style={{ marginBottom: 0 }}>Somente leitura · CPF, e-mail e telefone aparecem mascarados.</p>
+        <p className="note" style={{ marginBottom: 0 }}>Somente leitura · CPF/e-mail/telefone mascarados · envios em <strong>dry-run</strong> (nada é enviado).</p>
       </section>
 
-      {erro && <section className="panel"><h2>Não foi possível carregar</h2><p style={{ color: "#8d1c0f" }}>{erro}</p><p className="note">Se aparecer "painel_sem_senha", defina DASHBOARD_BASIC_USER e DASHBOARD_BASIC_PASS nas Variables do Railway.</p></section>}
-
+      {erro && <section className="panel"><p style={{ color: "#8d1c0f" }}>{erro}</p><p className="note">Se aparecer "painel_sem_senha", defina DASHBOARD_BASIC_USER/PASS no Railway.</p></section>}
       {loading && <section className="panel"><p>Carregando do Sienge…</p></section>}
 
       {grupos && (
         <>
           <section className="panel" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div><h2 style={{ margin: 0 }}>Clientes por empreendimento</h2><span className="note">{grupos.length} empreendimentos · {totalContratos} contratos</span></div>
-            <input placeholder="Buscar cliente, contrato ou unidade…" value={busca} onChange={e => setBusca(e.target.value)} style={{ minWidth: 280 }} />
+            <h2 style={{ margin: 0 }}>Clientes por empreendimento</h2>
+            <input placeholder="Buscar cliente, contrato ou unidade…" value={busca} onChange={e => setBusca(e.target.value)} style={{ minWidth: 260 }} />
           </section>
 
-          {gruposFiltrados.map(g => (
+          {filtrados.map(g => (
             <section className="panel" key={g.empreendimento}>
-              <h2 style={{ marginBottom: 4 }}>{g.empreendimento}</h2>
-              <span className="note">{g.contratos.length} contrato(s)</span>
+              <h2 style={{ marginBottom: 4 }}>{g.empreendimento}</h2><span className="note">{g.contratos.length} contrato(s)</span>
               <div style={{ overflowX: "auto", marginTop: 12 }}>
                 <table>
                   <thead><tr><th>Contrato</th><th>Cliente(s)</th><th>Unidade(s)</th><th>Situação</th><th style={{ textAlign: "right" }}>Valor</th><th></th></tr></thead>
@@ -100,11 +102,11 @@ export default function ConsultasPage() {
                     {g.contratos.map(c => (
                       <tr key={c.contratoId ?? c.numero}>
                         <td><strong>{c.numero ?? c.contratoId}</strong></td>
-                        <td>{c.clientes.map((cl, i) => <div key={i}>{cl.nome}{cl.principal ? "" : cl.conjuge ? " (cônjuge)" : " (co-titular)"}</div>)}</td>
+                        <td>{c.clientes.map((cl, i) => <div key={i}>{cl.nome}{cl.principal ? "" : cl.conjuge ? " (cônjuge)" : ""}</div>)}</td>
                         <td>{c.unidades.join(", ") || "—"}</td>
-                        <td>{situacaoPill(c.situacao)}</td>
+                        <td><span className={`tag ${/cancel/i.test(c.situacao ?? "") ? "off" : "on"}`}>{c.situacao ?? "—"}</span></td>
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{brl(c.valor)}</td>
-                        <td>{c.receivableBillId ? <button className="ghost" onClick={() => verTitulo(c.receivableBillId)}>Título</button> : null}</td>
+                        <td>{c.receivableBillId ? <button className="ghost" onClick={() => abrirParcelas(g.empreendimento, c)}>Parcelas & boletos</button> : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -112,22 +114,62 @@ export default function ConsultasPage() {
               </div>
             </section>
           ))}
-          {gruposFiltrados.length === 0 && !loading && <section className="panel"><p className="note">Nenhum contrato encontrado para "{busca}".</p></section>}
         </>
       )}
 
-      {detalhe && (
+      {aberto && (
         <section className="panel">
-          <h2>{detalheLabel}</h2>
-          {detalhe === "loading" ? <p>Consultando…</p> : detalhe.erro ? <p style={{ color: "#8d1c0f" }}>{detalhe.erro}</p> : (
-            <>
-              {detalhe.normalized && <><h3 style={{ marginBottom: 4 }}>Normalizado (mapper)</h3><pre className="payload">{JSON.stringify(detalhe.normalized, null, 2)}</pre></>}
-              <h3 style={{ marginBottom: 4 }}>Payload do título (redigido)</h3>
-              <pre className="payload">{JSON.stringify(detalhe.payload, null, 2)}</pre>
-              <p className="note">Parcelas e boleto (2ª via) ficam em endpoints separados — próximo passo do fluxo de cobrança.</p>
-            </>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ margin: 0 }}>Parcelas — contrato {aberto.contrato.numero ?? aberto.contrato.contratoId}</h2>
+            <button className="ghost" onClick={() => { setAberto(null); setParcelas(null); setAcao(null); }}>Fechar</button>
+          </div>
+          <span className="note">{aberto.contrato.clientes.map(c => c.nome).join(", ")} · {aberto.empreendimento}{aberto.contrato.unidades.length ? " — " + aberto.contrato.unidades.join(", ") : ""}</span>
+
+          {!parcelas ? <p style={{ marginTop: 12 }}>Carregando parcelas…</p> : parcelas.length === 0 ? <p className="note" style={{ marginTop: 12 }}>Sem parcelas.</p> : (
+            <div style={{ overflowX: "auto", marginTop: 12 }}>
+              <table>
+                <thead><tr><th>Parc.</th><th>Vencimento</th><th style={{ textAlign: "right" }}>Saldo</th><th>Boleto</th><th>Régua hoje</th><th></th></tr></thead>
+                <tbody>
+                  {parcelas.map(p => (
+                    <tr key={p.installmentId} style={{ opacity: p.paga ? 0.5 : 1 }}>
+                      <td>{p.installmentId}</td>
+                      <td>{p.vencimento}</td>
+                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{p.paga ? "paga" : p.saldoFmt}</td>
+                      <td>{p.boletoGerado ? "✅ gerado" : "—"}</td>
+                      <td>{p.paga ? <span className="tag neu">—</span> : etapaTag(p.etapa)}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        {p.boletoGerado && <button className="ghost" onClick={() => verBoleto(p.installmentId)}>Boleto</button>}{" "}
+                        {!p.paga && <button className="ghost" onClick={() => simular(p)}>Simular cobrança</button>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-          <button className="ghost" onClick={() => setDetalhe(null)} style={{ marginTop: 10 }}>Fechar</button>
+
+          {acao && (
+            <div style={{ marginTop: 14, borderTop: "1px solid #eee", paddingTop: 14 }}>
+              {acao.data === "loading" ? <p>Consultando…</p> : acao.tipo === "boleto" ? (
+                acao.data?.ok ? (
+                  <div>
+                    <h3 style={{ marginTop: 0 }}>Boleto — parcela {acao.instId}</h3>
+                    {acao.data.boleto?.url ? <p><a href={acao.data.boleto.url} target="_blank" rel="noreferrer">Abrir boleto (PDF)</a></p> : <p className="note">Sem link de boleto.</p>}
+                    {acao.data.boleto?.linhaDigitavel && <p style={{ fontFamily: "monospace", background: "#f0f0ec", padding: "8px 10px", borderRadius: 8 }}>{acao.data.boleto.linhaDigitavel}</p>}
+                  </div>
+                ) : <p style={{ color: "#8d1c0f" }}>{acao.data?.detail || acao.data?.error}</p>
+              ) : (
+                acao.data?.ok ? (
+                  <div>
+                    <h3 style={{ marginTop: 0 }}>Simulação de cobrança — parcela {acao.instId} <span className="tag off">🔒 NÃO ENVIADO ({acao.data.motivo})</span></h3>
+                    <p className="note">Template: {acao.data.template}</p>
+                    <div className="payload" style={{ whiteSpace: "pre-wrap", background: "#0b3d1e" }}>{acao.data.preview}{acao.data.boleto?.url ? `\n\nBoleto: ${acao.data.boleto.url}` : ""}{acao.data.boleto?.linhaDigitavel ? `\nLinha digitável: ${acao.data.boleto.linhaDigitavel}` : ""}</div>
+                    <p className="note">Isto é o que seria enviado no WhatsApp. Envio real só após aprovar templates na Meta e liberar as travas.</p>
+                  </div>
+                ) : <p style={{ color: "#8d1c0f" }}>{acao.data?.detail || acao.data?.error}</p>
+              )}
+            </div>
+          )}
         </section>
       )}
     </main>

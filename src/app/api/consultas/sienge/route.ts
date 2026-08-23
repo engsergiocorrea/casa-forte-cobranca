@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
 import { sienge, siengePing, extractCount } from "@/lib/sienge/client";
-import { normalizeReceivableBill } from "@/lib/sienge/mapper";
+import { normalizeReceivableBill, normalizeInstallmentsList, normalizePaymentSlip } from "@/lib/sienge/mapper";
+import { daysFromDue } from "@/lib/collection/date";
+import { previewMensagem, templateNameFor, type EtapaRegua } from "@/lib/collection/messages";
 import { redact, redactText } from "@/lib/redact";
+
+const fmtBRL = (n: number) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmtData = (d: Date) => isNaN(+d) ? "" : d.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+const etapaDe = (offset: number): EtapaRegua | null => offset === -10 ? "D-10" : offset === 0 ? "D0" : offset === 1 ? "D+1" : null;
 
 export const dynamic = "force-dynamic";
 
@@ -108,10 +114,78 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, action, payload: redact(raw), normalized });
     }
 
+    // Parcelas de um título, com a etapa da régua (D-10/D0/D+1) de HOJE.
+    if (action === "parcelas") {
+      const billId = Number(q.get("billId"));
+      if (!billId) return NextResponse.json({ ok: false, error: "informe_billId" }, { status: 400 });
+      const rows = normalizeInstallmentsList(await sienge.getInstallments(billId));
+      const now = new Date();
+      const parcelas = rows.map((r) => {
+        const etapa = etapaDe(daysFromDue(now, r.dueDate, env().TIMEZONE));
+        return {
+          installmentId: r.installmentId,
+          vencimento: fmtData(r.dueDate),
+          saldo: r.balanceDue,
+          saldoFmt: fmtBRL(r.balanceDue),
+          paga: r.paid,
+          boletoGerado: r.generatedBoleto,
+          etapa,
+          elegivelHoje: !!etapa && r.balanceDue > 0 && !r.paid,
+        };
+      });
+      return NextResponse.json({ ok: true, action, billId, parcelas });
+    }
+
+    // 2ª via do boleto (link + linha digitável).
+    if (action === "boleto") {
+      const billId = Number(q.get("billId"));
+      const installmentId = Number(q.get("installmentId"));
+      if (!billId || !installmentId) return NextResponse.json({ ok: false, error: "informe_billId_e_installmentId" }, { status: 400 });
+      return NextResponse.json({ ok: true, action, boleto: normalizePaymentSlip(await sienge.getPaymentSlip(billId, installmentId)) });
+    }
+
     return NextResponse.json({ ok: false, error: "acao_desconhecida" }, { status: 400 });
   } catch (e: any) {
     const msg = redactText(String(e?.message ?? e)).slice(0, 300);
     const status = /Sienge 401/.test(msg) ? "authentication_failed" : /Sienge 403/.test(msg) ? "permission_denied" : /Sienge 404/.test(msg) ? "not_found" : "error";
     return NextResponse.json({ ok: false, error: status, detail: msg });
+  }
+}
+
+// POST /api/consultas/sienge  { action:"simular", billId, installmentId, nome, imovel, etapa }
+// Simula a cobrança de uma parcela: monta a mensagem (com boleto) e aplica o
+// safety gate. Em staging/dry-run NÃO envia nada — só devolve o preview e o
+// motivo do bloqueio. Recebe nome/imóvel no BODY (não na URL) para não pôr PII
+// em query string.
+export async function POST(req: NextRequest) {
+  const blocked = guard();
+  if (blocked) return blocked;
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (body?.action !== "simular") return NextResponse.json({ ok: false, error: "acao_desconhecida" }, { status: 400 });
+    const billId = Number(body.billId);
+    const installmentId = Number(body.installmentId);
+    if (!billId || !installmentId) return NextResponse.json({ ok: false, error: "informe_billId_e_installmentId" }, { status: 400 });
+    const etapa: EtapaRegua = (["D-10", "D0", "D+1"].includes(body.etapa) ? body.etapa : "D0");
+
+    const rows = normalizeInstallmentsList(await sienge.getInstallments(billId));
+    const p = rows.find((r) => r.installmentId === installmentId);
+    if (!p) return NextResponse.json({ ok: false, error: "parcela_nao_encontrada" }, { status: 404 });
+
+    const boleto = normalizePaymentSlip(await sienge.getPaymentSlip(billId, installmentId));
+    const nome = String(body.nome ?? "cliente").trim().split(/\s+/)[0];
+    const dados = { nome, imovel: String(body.imovel ?? ""), vencimento: fmtData(p.dueDate), valor: fmtBRL(p.balanceDue) };
+    const preview = previewMensagem(etapa, dados);
+
+    const e = env();
+    const motivo = !e.OUTBOUND_MESSAGING_ENABLED ? "MASTER_SWITCH_OFF" : e.WHATSAPP_DRY_RUN ? "DRY_RUN" : "PERMITIDO";
+    return NextResponse.json({
+      ok: true, action: "simular", enviado: false, motivo,
+      template: templateNameFor(etapa), preview,
+      boleto, saldo: p.balanceDue, paga: p.paid,
+    });
+  } catch (e: any) {
+    const msg = redactText(String(e?.message ?? e)).slice(0, 300);
+    return NextResponse.json({ ok: false, error: "error", detail: msg });
   }
 }

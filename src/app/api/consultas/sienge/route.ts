@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
 import { sienge, siengePing, extractCount } from "@/lib/sienge/client";
-import { normalizeReceivableBill, normalizeInstallmentsList, normalizePaymentSlip } from "@/lib/sienge/mapper";
+import { normalizeReceivableBill, normalizeInstallmentsList, normalizePaymentSlip, normalizeCustomerPhones } from "@/lib/sienge/mapper";
 import { daysFromDue } from "@/lib/collection/date";
 import { previewMensagem, templateNameFor, type EtapaRegua } from "@/lib/collection/messages";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/client";
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
           receivableBillId: c?.receivableBillId ?? null,
           dataContrato: c?.contractDate ?? null,
           clientes: (Array.isArray(c?.salesContractCustomers) ? c.salesContractCustomers : [])
-            .map((x: any) => ({ nome: x?.name ?? null, principal: !!x?.main, conjuge: !!x?.spouse })),
+            .map((x: any) => ({ nome: x?.name ?? null, customerId: Number(x?.id ?? x?.customerId) || null, principal: !!x?.main, conjuge: !!x?.spouse })),
           unidades: (Array.isArray(c?.salesContractUnits) ? c.salesContractUnits : [])
             .map((x: any) => x?.name).filter(Boolean),
         });
@@ -138,6 +138,23 @@ export async function GET(req: NextRequest) {
         };
       });
       return NextResponse.json({ ok: true, action, billId, parcelas });
+    }
+
+    // Telefones do cadastro do cliente no Sienge (sob demanda, por customerId).
+    // Retornados em E.164 para preencher o envio — o número só sai de verdade se
+    // estiver na WHATSAPP_ALLOWLIST. ids não são PII (podem ir na query).
+    if (action === "telefones") {
+      const ids = [...new Set((q.get("customerIds") ?? "").split(",").map((s) => Number(s.trim())).filter(Boolean))].slice(0, 6);
+      if (!ids.length) return NextResponse.json({ ok: false, error: "informe_customerIds" }, { status: 400 });
+      const clientes = await Promise.all(ids.map(async (id) => {
+        try {
+          const c = await sienge.getCustomer(id);
+          return { customerId: id, nome: (c?.name ?? null), telefones: normalizeCustomerPhones(c) };
+        } catch {
+          return { customerId: id, nome: null, telefones: [] as ReturnType<typeof normalizeCustomerPhones> };
+        }
+      }));
+      return NextResponse.json({ ok: true, action, clientes });
     }
 
     // 2ª via do boleto (link + linha digitável).

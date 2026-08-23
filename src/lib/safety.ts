@@ -11,6 +11,18 @@ export function normalizePhone(phone: string) {
   return digits ? `+${digits}` : "";
 }
 
+// Telefone do Sienge → E.164 brasileiro. O Sienge costuma guardar sem o DDI
+// (ex.: "82 99999-9999"); o WhatsApp exige o país (55). Regras: 12–13 dígitos
+// começando com 55 já têm país; 10–11 dígitos (DDD+número) recebem 55; demais
+// casos ficam como estão (melhor esforço).
+export function toBrazilE164(raw: string): string {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) return `+${d}`;
+  if (d.length === 10 || d.length === 11) return `+55${d}`;
+  return `+${d}`;
+}
+
 export function canSendTo(phone: string, cfg: SafetyConfig) {
   const normalized = normalizePhone(phone);
   if (!cfg.outboundEnabled) return { allowed: false, reason: "MASTER_SWITCH_OFF" } as const;

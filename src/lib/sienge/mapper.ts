@@ -1,5 +1,6 @@
 // IMPORTANT: Sienge responses vary by resource/version. This mapper is intentionally defensive.
 // During first integration test, save a redacted real payload and tighten these mappings with Claude.
+import { toBrazilE164 } from "../safety";
 function first<T = any>(...values: T[]): T | undefined { return values.find(v => v !== undefined && v !== null); }
 function arr(v: any): any[] { return Array.isArray(v) ? v : v?.results || v?.data || []; }
 function parseSiengeDate(v: any) {
@@ -56,6 +57,34 @@ export function normalizePaymentSlip(payload: any): NormalizedBoleto {
   const url = first(it?.urlReport, it?.url, it?.reportUrl);
   const linha = first(it?.digitableNumber, it?.digitableLine, it?.barCode);
   return { url: url ? String(url) : null, linhaDigitavel: linha ? String(linha) : null };
+}
+
+// Telefones do cadastro do cliente no Sienge (GET /customers/{id}).
+// Estrutura varia por versão — extração defensiva. Devolve em E.164 BR para o
+// envio (o número precisa estar na WHATSAPP_ALLOWLIST para sair de verdade).
+export type CustomerPhone = { numero: string; tipo: string | null; principal: boolean };
+export function normalizeCustomerPhones(customer: any): CustomerPhone[] {
+  const root = Array.isArray(customer) ? customer[0] : customer;
+  const list = arr(first(root?.phones, root?.phoneNumbers, root?.contacts, root?.telephones));
+  const out: CustomerPhone[] = [];
+  const push = (raw: any, tipo: any, principal: any) => {
+    const e164 = toBrazilE164(String(raw ?? ""));
+    if (e164 && e164.replace(/\D/g, "").length >= 12 && !out.some(o => o.numero === e164)) {
+      out.push({ numero: e164, tipo: tipo != null ? String(tipo) : null, principal: !!principal });
+    }
+  };
+  for (const p of (Array.isArray(list) ? list : [])) {
+    const raw = first(
+      p?.number, p?.phoneNumber, p?.fullNumber, p?.phone,
+      (p?.ddd ?? p?.areaCode) ? `${p?.ddd ?? p?.areaCode}${p?.number ?? p?.phoneNumber ?? ""}` : undefined,
+    );
+    push(raw, first(p?.type, p?.description, p?.kind), first(p?.main, p?.principal, false));
+  }
+  // Campos soltos no topo do cadastro (algumas versões do Sienge).
+  for (const key of ["cellPhone", "cellphone", "mobilePhone", "mobile", "phone", "telephone"]) {
+    if (root?.[key]) push(root[key], key, false);
+  }
+  return out;
 }
 
 export function normalizeInstallmentsList(payload: any): NormalizedInstallmentRow[] {

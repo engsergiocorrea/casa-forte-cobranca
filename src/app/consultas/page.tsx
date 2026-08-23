@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 // de cobrança (dry-run: mostra a mensagem que SERIA enviada, sem enviar).
 
 type PingRes = { ok: boolean; httpStatus: number; count: number | null };
-type Cliente = { nome: string | null; principal: boolean; conjuge: boolean };
+type Cliente = { nome: string | null; customerId: number | null; principal: boolean; conjuge: boolean };
+type TelCliente = { customerId: number; nome: string | null; telefones: { numero: string; tipo: string | null; principal: boolean }[] };
 type Contrato = { contratoId: number | null; numero: string | null; situacao: string | null; valor: number | null; receivableBillId: number | null; clientes: Cliente[]; unidades: string[] };
 type Grupo = { empreendimento: string; contratos: Contrato[] };
 type Parcela = { installmentId: number; vencimento: string; saldo: number; saldoFmt: string; paga: boolean; boletoGerado: boolean; etapa: string | null; elegivelHoje: boolean };
@@ -26,6 +27,7 @@ export default function ConsultasPage() {
   const [acao, setAcao] = useState<{ tipo: "boleto" | "simular" | "enviar"; instId: number; data: any } | null>(null);
   const [pre, setPre] = useState<Preflight | null>(null);
   const [fone, setFone] = useState("");
+  const [tels, setTels] = useState<TelCliente[] | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -62,7 +64,14 @@ export default function ConsultasPage() {
   }
 
   async function abrirParcelas(empreendimento: string, contrato: Contrato) {
-    setAberto({ empreendimento, contrato }); setParcelas(null); setAcao(null);
+    setAberto({ empreendimento, contrato }); setParcelas(null); setAcao(null); setFone(""); setTels(null);
+    // Telefones do cadastro do cliente no Sienge (sob demanda).
+    const ids = contrato.clientes.map(c => c.customerId).filter((n): n is number => !!n);
+    if (ids.length) {
+      fetch(`/api/consultas/sienge?action=telefones&customerIds=${ids.join(",")}`).then(r => r.json())
+        .then(d => { if (d?.ok) { setTels(d.clientes); const primeiro = d.clientes.flatMap((c: TelCliente) => c.telefones)[0]; if (primeiro) setFone(primeiro.numero); } })
+        .catch(() => setTels([]));
+    } else { setTels([]); }
     if (!contrato.receivableBillId) { setParcelas([]); return; }
     try {
       const d = await fetch(`/api/consultas/sienge?action=parcelas&billId=${contrato.receivableBillId}`).then(r => r.json());
@@ -173,6 +182,18 @@ export default function ConsultasPage() {
             <input placeholder="WhatsApp do cliente (ex.: +5582999999999)" value={fone} onChange={e => setFone(e.target.value)} style={{ minWidth: 260 }} />
             <span className={`tag ${envioLiberado ? "off" : "neu"}`}>{envioLiberado ? "envio real ligado" : "dry-run"}</span>
             <span className="note">O número precisa estar na WHATSAPP_ALLOWLIST do Railway.</span>
+          </div>
+          <div style={{ marginTop: 6 }}>
+            {tels === null ? <span className="note">Buscando telefones no Sienge…</span>
+              : tels.flatMap(c => c.telefones).length === 0 ? <span className="note">Nenhum telefone no cadastro do Sienge — digite manualmente.</span>
+              : <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <span className="note">Telefones do Sienge:</span>
+                  {tels.flatMap(c => c.telefones).map((t, i) => (
+                    <button key={i} className="ghost" onClick={() => setFone(t.numero)} style={fone === t.numero ? { borderColor: "#0b3d1e", color: "#0b3d1e" } : undefined}>
+                      {t.numero}{t.tipo ? ` · ${t.tipo}` : ""}{t.principal ? " ★" : ""}
+                    </button>
+                  ))}
+                </span>}
           </div>
 
           {!parcelas ? <p style={{ marginTop: 12 }}>Carregando parcelas…</p> : parcelas.length === 0 ? <p className="note" style={{ marginTop: 12 }}>Sem parcelas.</p> : (

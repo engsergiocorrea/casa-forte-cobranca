@@ -98,6 +98,58 @@ export async function siengeSampleBillShape(): Promise<{ httpStatus: number; ok:
   return { httpStatus: br.status, ok: br.ok, shape, billId };
 }
 
+// Explorador READ-ONLY: tenta endpoints candidatos de PARCELAS e BOLETO e
+// reporta, para cada, httpStatus + estrutura (sem valores). Serve para
+// descobrir empiricamente os endpoints certos (regra: capturar da API real,
+// nunca supor). Só GET; nada é escrito no Sienge.
+export async function siengeExplore(billIdParam?: number): Promise<{ billId: number | null; installmentId: number | null; results: any[] }> {
+  const get = async (path: string) => {
+    try {
+      const r = await fetch(`${baseUrl()}${path}`, {
+        method: "GET", headers: { Accept: "application/json", Authorization: authHeader() },
+        signal: AbortSignal.timeout(20_000), cache: "no-store",
+      });
+      let json: any = null, shape: any = null;
+      if (r.ok) { try { json = await r.json(); shape = describeShape(json, 4); } catch { /* não-JSON */ } }
+      return { path, httpStatus: r.status, ok: r.ok, shape, json };
+    } catch (e: any) {
+      return { path, httpStatus: 0, ok: false, shape: null, json: null, error: String(e?.message ?? e).slice(0, 120) };
+    }
+  };
+
+  let billId = billIdParam ?? null;
+  if (!billId) {
+    const cr = await get(`/sales-contracts?limit=1`);
+    const contract = Array.isArray(cr.json) ? cr.json[0] : (cr.json?.results?.[0] ?? cr.json?.data?.[0] ?? cr.json);
+    billId = Number(contract?.receivableBillId) || null;
+  }
+
+  const results: any[] = [];
+  let installmentId: number | null = null;
+  if (billId) {
+    const candidatosParcelas = [
+      `/accounts-receivable/receivable-bills/${billId}/installments`,
+      `/current-debit-balance?billReceivableId=${billId}`,
+      `/accounts-receivable/receivable-bills/installments?billReceivableId=${billId}`,
+    ];
+    for (const c of candidatosParcelas) {
+      const res = await get(c);
+      if (res.ok && installmentId == null) {
+        const items = Array.isArray(res.json) ? res.json : (res.json?.results ?? res.json?.data ?? res.json?.installments ?? []);
+        const it = Array.isArray(items) ? items[0] : items;
+        const cand = Number(it?.installmentId ?? it?.id ?? it?.number);
+        if (cand) installmentId = cand;
+      }
+      results.push({ path: c.replace(String(billId), "{billId}"), httpStatus: res.httpStatus, ok: res.ok, shape: res.shape, error: (res as any).error });
+    }
+    if (installmentId != null) {
+      const res = await get(`/payment-slip-notification?billReceivableId=${billId}&installmentId=${installmentId}`);
+      results.push({ path: `/payment-slip-notification?billReceivableId={billId}&installmentId={installmentId}`, httpStatus: res.httpStatus, ok: res.ok, shape: res.shape, error: (res as any).error });
+    }
+  }
+  return { billId, installmentId, results };
+}
+
 // Ping READ-ONLY para diagnóstico de conectividade/autenticação com o Sienge.
 // Faz um GET e devolve SOMENTE { httpStatus, ok, count } — nunca o corpo bruto,
 // credenciais ou o header Authorization. Não lança em erro HTTP (para a rota de

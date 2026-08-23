@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
-import { siengePing, siengeShapeOf, siengeSampleBillShape } from "@/lib/sienge/client";
+import { siengePing, siengeShapeOf, siengeSampleBillShape, siengeExplore } from "@/lib/sienge/client";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,12 @@ export async function GET(req: NextRequest) {
   const base = { subdomain: e.SIENGE_SUBDOMAIN, endpoint };
 
   try {
+    // ?resource=explore[&billId=N] → descobre endpoints de parcelas/boleto (só estrutura).
+    if (resource === "explore") {
+      const billId = Number(req.nextUrl.searchParams.get("billId")) || undefined;
+      const x = await siengeExplore(billId);
+      return NextResponse.json({ ok: true, subdomain: e.SIENGE_SUBDOMAIN, ...x });
+    }
     // ?resource=receivable-bill&shape=1 → estrutura do título/parcelas/boleto (amostra).
     if (resource === "receivable-bill" && req.nextUrl.searchParams.get("shape") === "1") {
       const s = await siengeSampleBillShape();

@@ -8,7 +8,7 @@ import { sendWhatsAppTemplate } from "@/lib/whatsapp/client";
 import { getTemplateInfo } from "@/lib/whatsapp/templates";
 import { evolutionSendText, evolutionSendDocument } from "@/lib/whatsapp/evolution";
 import { canSendTo } from "@/lib/safety";
-import { runReguaFromSienge } from "@/lib/collection/regua";
+import { runReguaFromSienge, ensureCollectionRules } from "@/lib/collection/regua";
 import { db } from "@/lib/db";
 import { redact, redactText } from "@/lib/redact";
 
@@ -223,6 +223,7 @@ export async function GET(req: NextRequest) {
 
     // Estado da régua automática: regras (etapas on/off) + últimos envios.
     if (action === "regua") {
+      await ensureCollectionRules(); // cria as 3 etapas se faltarem (seed não roda no deploy)
       const rules = await db.collectionRule.findMany({ orderBy: { dayOffset: "asc" } });
       const recentes = await db.collectionSend.findMany({ orderBy: { createdAt: "desc" }, take: 20 });
       return NextResponse.json({

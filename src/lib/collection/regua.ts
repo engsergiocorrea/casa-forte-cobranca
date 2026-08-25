@@ -28,10 +28,29 @@ export type ReguaSummary = {
   skipped?: string;
 };
 
+// Garante que as 3 etapas da régua (D-10/D0/D+1) existam no banco, SEM alterar
+// o `enabled` de quem já existe. Substitui o seed (que não roda no deploy) e
+// deixa os botões de liga/desliga sempre disponíveis no painel.
+export async function ensureCollectionRules() {
+  const defs = [
+    { name: "D-10", dayOffset: -10, templateName: process.env.WA_TEMPLATE_D_MINUS_10 || "cf_cobranca_d_menos_10" },
+    { name: "D0", dayOffset: 0, templateName: process.env.WA_TEMPLATE_DUE_TODAY || "cf_cobranca_vence_hoje" },
+    { name: "D+1", dayOffset: 1, templateName: process.env.WA_TEMPLATE_D_PLUS_1 || "cf_cobranca_atraso_1d" },
+  ];
+  for (const d of defs) {
+    await db.collectionRule.upsert({
+      where: { name: d.name },
+      update: {}, // não mexe em enabled/sendHour do que já existe
+      create: { ...d, enabled: false, languageCode: process.env.WA_TEMPLATE_LANGUAGE || "pt_BR", sendHour: 9 },
+    });
+  }
+}
+
 export async function runReguaFromSienge(now = new Date()): Promise<ReguaSummary> {
   const e = env();
   const base: ReguaSummary = { provider: e.WHATSAPP_PROVIDER, contratos: 0, elegiveis: 0, enviados: 0, dryRun: 0, bloqueados: 0, semTelefone: 0, jaEnviados: 0, erros: 0 };
 
+  await ensureCollectionRules();
   const rules = await db.collectionRule.findMany({ where: { enabled: true } });
   const offsets = new Set(rules.map((r) => r.dayOffset));
   if (!offsets.size) return { ...base, skipped: "nenhuma_regra_ativa" };

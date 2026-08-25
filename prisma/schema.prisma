@@ -12,6 +12,7 @@ enum AppSource {
   WHATSAPP
   SYSTEM
 }
+
 enum IntegrationEventStatus {
   RECEIVED
   PROCESSING
@@ -19,6 +20,7 @@ enum IntegrationEventStatus {
   FAILED
   IGNORED
 }
+
 enum InstallmentStatus {
   OPEN
   PAID
@@ -26,11 +28,13 @@ enum InstallmentStatus {
   PARTIAL
   UNKNOWN
 }
+
 enum PaymentSlipStatus {
   UNKNOWN
   CONFIRMED
   REJECTED
 }
+
 enum MessageStatus {
   SCHEDULED
   QUEUED
@@ -41,41 +45,43 @@ enum MessageStatus {
   FAILED
   CANCELED
 }
+
 enum MessageChannel {
   WHATSAPP
 }
 
 model Customer {
-  id          String          @id @default(cuid())
-  siengeId    Int             @unique
-  name        String
-  taxId       String?
-  active      Boolean         @default(true)
-  phones      CustomerPhone[]
-  contracts   Contract[]
+  id           String            @id @default(cuid())
+  siengeId     Int               @unique
+  name         String
+  taxId        String?
+  active       Boolean           @default(true)
+  phones       CustomerPhone[]
+  contracts    Contract[]
   installments Installment[]
-  pauses      CollectionPause[]
-  messages    Message[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  pauses       CollectionPause[]
+  messages     Message[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 }
 
 model CustomerPhone {
-  id          String   @id @default(cuid())
-  customerId  String
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  numberE164  String
-  whatsappOptIn Boolean @default(false)
-  active      Boolean  @default(true)
-  preferred   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  numberE164    String
+  whatsappOptIn Boolean  @default(false)
+  active        Boolean  @default(true)
+  preferred     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
   @@unique([customerId, numberE164])
 }
 
 model Project {
-  id                 String @id @default(cuid())
-  siengeCostCenterId Int    @unique
+  id                 String   @id @default(cuid())
+  siengeCostCenterId Int      @unique
   name               String
   units              Unit[]
   createdAt          DateTime @default(now())
@@ -83,106 +89,133 @@ model Project {
 }
 
 model Unit {
-  id          String @id @default(cuid())
-  siengeUnitId Int   @unique
-  projectId   String?
-  project     Project? @relation(fields: [projectId], references: [id])
-  name        String
-  contracts   Contract[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String     @id @default(cuid())
+  siengeUnitId Int        @unique
+  projectId    String?
+  project      Project?   @relation(fields: [projectId], references: [id])
+  name         String
+  contracts    Contract[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 }
 
 model Contract {
-  id                    String @id @default(cuid())
-  siengeSalesContractId Int    @unique
+  id                    String        @id @default(cuid())
+  siengeSalesContractId Int           @unique
   customerId            String
-  customer              Customer @relation(fields: [customerId], references: [id])
+  customer              Customer      @relation(fields: [customerId], references: [id])
   unitId                String?
-  unit                  Unit? @relation(fields: [unitId], references: [id])
-  active                Boolean @default(true)
+  unit                  Unit?         @relation(fields: [unitId], references: [id])
+  active                Boolean       @default(true)
   installments          Installment[]
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 }
 
 model Installment {
-  id                      String @id @default(cuid())
-  siengeReceivableBillId  Int
-  siengeInstallmentId     Int
-  customerId              String
-  customer                Customer @relation(fields: [customerId], references: [id])
-  contractId              String?
-  contract                Contract? @relation(fields: [contractId], references: [id])
-  dueDate                 DateTime
-  originalAmount          Decimal @db.Decimal(18,2)
-  currentAmount           Decimal? @db.Decimal(18,2)
-  status                   InstallmentStatus @default(UNKNOWN)
-  paymentSlipStatus        PaymentSlipStatus @default(UNKNOWN)
-  partialPaymentDetected   Boolean @default(false)
-  lastValidatedAt          DateTime?
-  messages                 Message[]
-  pauses                   CollectionPause[]
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  id                     String            @id @default(cuid())
+  siengeReceivableBillId Int
+  siengeInstallmentId    Int
+  customerId             String
+  customer               Customer          @relation(fields: [customerId], references: [id])
+  contractId             String?
+  contract               Contract?         @relation(fields: [contractId], references: [id])
+  dueDate                DateTime
+  originalAmount         Decimal           @db.Decimal(18, 2)
+  currentAmount          Decimal?          @db.Decimal(18, 2)
+  status                 InstallmentStatus @default(UNKNOWN)
+  paymentSlipStatus      PaymentSlipStatus @default(UNKNOWN)
+  partialPaymentDetected Boolean           @default(false)
+  lastValidatedAt        DateTime?
+  messages               Message[]
+  pauses                 CollectionPause[]
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
   @@unique([siengeReceivableBillId, siengeInstallmentId])
   @@index([dueDate, status])
 }
 
 model CollectionRule {
-  id             String @id @default(cuid())
-  name           String @unique
+  id             String    @id @default(cuid())
+  name           String    @unique
   dayOffset      Int
   templateName   String
-  languageCode   String @default("pt_BR")
-  enabled        Boolean @default(false)
-  sendHour       Int @default(9)
-  excludePartial Boolean @default(true)
+  languageCode   String    @default("pt_BR")
+  enabled        Boolean   @default(false)
+  sendHour       Int       @default(9)
+  excludePartial Boolean   @default(true)
   messages       Message[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// Log de envios da régua automática (Sienge direto -> Evolution). Serve de
+// dedupe (não reenviar a mesma etapa da mesma parcela) e de auditoria. Sem FKs
+// para o pipeline antigo — o job lê direto do Sienge, não depende do sync local.
+model CollectionSend {
+  id            String   @id @default(cuid())
+  dedupeKey     String   @unique
+  billId        Int
+  installmentId Int
+  etapa         String
+  dueDate       DateTime
+  valor         Decimal  @db.Decimal(18, 2)
+  phone         String
+  status        String // SENT | DRY_RUN | BLOCKED | NO_PHONE | ERROR
+  motivo        String?
+  messageId     String?
+  boletoSent    Boolean  @default(false)
+  detail        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([billId, installmentId, etapa])
+  @@index([createdAt])
 }
 
 model CollectionPause {
-  id            String @id @default(cuid())
+  id            String       @id @default(cuid())
   customerId    String?
-  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer      Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   installmentId String?
   installment   Installment? @relation(fields: [installmentId], references: [id], onDelete: Cascade)
   until         DateTime
   reason        String
-  createdAt     DateTime @default(now())
+  createdAt     DateTime     @default(now())
+
   @@index([customerId, until])
   @@index([installmentId, until])
 }
 
 model Message {
-  id                String @id @default(cuid())
-  channel           MessageChannel @default(WHATSAPP)
+  id                String          @id @default(cuid())
+  channel           MessageChannel  @default(WHATSAPP)
   customerId        String
-  customer          Customer @relation(fields: [customerId], references: [id])
+  customer          Customer        @relation(fields: [customerId], references: [id])
   installmentId     String?
-  installment       Installment? @relation(fields: [installmentId], references: [id])
+  installment       Installment?    @relation(fields: [installmentId], references: [id])
   ruleId            String?
   rule              CollectionRule? @relation(fields: [ruleId], references: [id])
   phone             String
   templateName      String
-  languageCode      String @default("pt_BR")
+  languageCode      String          @default("pt_BR")
   scheduledAt       DateTime
   sentAt            DateTime?
-  externalMessageId String? @unique
-  status            MessageStatus @default(SCHEDULED)
-  dedupeKey         String @unique
+  externalMessageId String?         @unique
+  status            MessageStatus   @default(SCHEDULED)
+  dedupeKey         String          @unique
   payload           Json?
   lastError         String?
   events            MessageEvent[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
   @@index([scheduledAt, status])
 }
 
 model MessageEvent {
-  id                String @id @default(cuid())
+  id                String   @id @default(cuid())
   messageId         String?
   message           Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
   externalMessageId String?
@@ -190,11 +223,12 @@ model MessageEvent {
   payload           Json
   occurredAt        DateTime
   createdAt         DateTime @default(now())
+
   @@index([externalMessageId])
 }
 
 model IntegrationEvent {
-  id          String @id @default(cuid())
+  id          String                 @id @default(cuid())
   source      AppSource
   externalId  String
   eventName   String
@@ -204,8 +238,9 @@ model IntegrationEvent {
   payload     Json
   processedAt DateTime?
   lastError   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
   @@unique([source, externalId])
   @@index([status, createdAt])
 }

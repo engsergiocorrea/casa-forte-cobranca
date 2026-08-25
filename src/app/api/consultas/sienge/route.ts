@@ -8,6 +8,8 @@ import { sendWhatsAppTemplate } from "@/lib/whatsapp/client";
 import { getTemplateInfo } from "@/lib/whatsapp/templates";
 import { evolutionSendText, evolutionSendDocument } from "@/lib/whatsapp/evolution";
 import { canSendTo } from "@/lib/safety";
+import { runReguaFromSienge } from "@/lib/collection/regua";
+import { db } from "@/lib/db";
 import { redact, redactText } from "@/lib/redact";
 
 const WA_LANG = () => process.env.WA_TEMPLATE_LANGUAGE || "pt_BR";
@@ -195,12 +197,34 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Estado da régua automática: regras (etapas on/off) + últimos envios.
+    if (action === "regua") {
+      const rules = await db.collectionRule.findMany({ orderBy: { dayOffset: "asc" } });
+      const recentes = await db.collectionSend.findMany({ orderBy: { createdAt: "desc" }, take: 20 });
+      return NextResponse.json({
+        ok: true, action,
+        regras: rules.map((r) => ({ name: r.name, dayOffset: r.dayOffset, enabled: r.enabled, sendHour: r.sendHour })),
+        recentes: recentes.map((s) => ({
+          etapa: s.etapa, vencimento: s.dueDate.toLocaleDateString("pt-BR", { timeZone: "UTC" }),
+          valor: Number(s.valor), status: s.status, motivo: s.motivo, boletoSent: s.boletoSent,
+          quando: s.createdAt.toISOString(), telefone: maskPhone(s.phone),
+        })),
+      });
+    }
+
     return NextResponse.json({ ok: false, error: "acao_desconhecida" }, { status: 400 });
   } catch (e: any) {
     const msg = redactText(String(e?.message ?? e)).slice(0, 300);
     const status = /Sienge 401/.test(msg) ? "authentication_failed" : /Sienge 403/.test(msg) ? "permission_denied" : /Sienge 404/.test(msg) ? "not_found" : "error";
     return NextResponse.json({ ok: false, error: status, detail: msg });
   }
+}
+
+// Máscara de telefone p/ o log da régua (mostra só o fim, confirma o cliente).
+function maskPhone(p: string): string {
+  const d = String(p ?? "").replace(/\D/g, "");
+  if (d.length < 4) return p ? "•••" : "";
+  return `•••••${d.slice(-4)}`;
 }
 
 // POST /api/consultas/sienge
@@ -219,6 +243,21 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const acao = body?.action;
+
+    // Liga/desliga uma etapa da régua (D-10 / D0 / D+1).
+    if (acao === "regua-toggle") {
+      const name = String(body.name ?? "");
+      if (!["D-10", "D0", "D+1"].includes(name)) return NextResponse.json({ ok: false, error: "etapa_invalida" }, { status: 400 });
+      const rule = await db.collectionRule.update({ where: { name }, data: { enabled: !!body.enabled } });
+      return NextResponse.json({ ok: true, action: acao, name: rule.name, enabled: rule.enabled });
+    }
+
+    // Roda a régua agora (mesmo motor do cron; respeita todas as travas).
+    if (acao === "regua-rodar") {
+      const resumo = await runReguaFromSienge(new Date());
+      return NextResponse.json({ ok: true, action: acao, resumo });
+    }
+
     if (acao !== "simular" && acao !== "enviar") {
       return NextResponse.json({ ok: false, error: "acao_desconhecida" }, { status: 400 });
     }

@@ -13,6 +13,9 @@ type Grupo = { empreendimento: string; contratos: Contrato[] };
 type Parcela = { installmentId: number; vencimento: string; saldo: number; saldoFmt: string; paga: boolean; boletoGerado: boolean; etapa: string | null; elegivelHoje: boolean };
 type TemplateInfo = { name: string; found: boolean; status: string | null; bodyParamCount: number | null; hasUrlButton: boolean; urlButtonHasVariable: boolean; error?: string };
 type Preflight = { gate: { provider: "evolution" | "meta"; appMode: string; outboundEnabled: boolean; dryRun: boolean; allowAllProduction: boolean; allowlistCount: number; credsPresent: boolean }; templates: TemplateInfo[] };
+type Regra = { name: string; dayOffset: number; enabled: boolean; sendHour: number };
+type EnvioLog = { etapa: string; vencimento: string; valor: number; status: string; motivo: string | null; boletoSent: boolean; quando: string; telefone: string };
+type Regua = { regras: Regra[]; recentes: EnvioLog[] };
 
 const brl = (v: number | null) => v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -28,17 +31,22 @@ export default function ConsultasPage() {
   const [pre, setPre] = useState<Preflight | null>(null);
   const [fone, setFone] = useState("");
   const [tels, setTels] = useState<TelCliente[] | null>(null);
+  const [regua, setRegua] = useState<Regua | null>(null);
+  const [runResumo, setRunResumo] = useState<any>(null);
+  const [rodando, setRodando] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const [s, e, pf] = await Promise.all([
+        const [s, e, pf, rg] = await Promise.all([
           fetch("/api/consultas/sienge?action=status").then(r => r.json()),
           fetch("/api/consultas/sienge?action=empreendimentos").then(r => r.json()),
           fetch("/api/consultas/sienge?action=preflight").then(r => r.json()).catch(() => null),
+          fetch("/api/consultas/sienge?action=regua").then(r => r.json()).catch(() => null),
         ]);
         if (s?.ok) setStatus(s.status);
         if (pf?.ok) setPre({ gate: pf.gate, templates: pf.templates });
+        if (rg?.ok) setRegua({ regras: rg.regras, recentes: rg.recentes });
         if (!e?.ok) throw new Error(e?.detail || e?.error || "falha ao carregar");
         setGrupos(e.empreendimentos);
       } catch (err: any) { setErro(String(err?.message ?? err)); }
@@ -47,6 +55,27 @@ export default function ConsultasPage() {
   }, []);
 
   const envioLiberado = !!pre && pre.gate.outboundEnabled && !pre.gate.dryRun && pre.gate.credsPresent && pre.gate.allowlistCount > 0;
+
+  async function recarregarRegua() {
+    const rg = await fetch("/api/consultas/sienge?action=regua").then(r => r.json()).catch(() => null);
+    if (rg?.ok) setRegua({ regras: rg.regras, recentes: rg.recentes });
+  }
+  async function toggleRegua(name: string, enabled: boolean) {
+    await fetch("/api/consultas/sienge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "regua-toggle", name, enabled }) });
+    recarregarRegua();
+  }
+  async function rodarRegua() {
+    if (!confirm("Rodar a régua agora?\n\nVai varrer os contratos no Sienge e disparar as etapas de hoje (D-10/D0/D+1) das parcelas em aberto.\nSó envia de verdade para números na allowlist — o resto fica registrado como bloqueado/dry-run.")) return;
+    setRodando(true); setRunResumo(null);
+    const d = await fetch("/api/consultas/sienge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "regua-rodar" }) }).then(r => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+    setRunResumo(d.ok ? d.resumo : { erro: d.detail || d.error });
+    setRodando(false); recarregarRegua();
+  }
+  const statusTag = (s: string) => {
+    const cor = s === "SENT" ? { background: "#0b3d1e", color: "#fff" } : undefined;
+    const cls = s === "SENT" ? "tag" : s === "DRY_RUN" ? "tag neu" : "tag off";
+    return <span className={cls} style={cor}>{s}</span>;
+  };
 
   async function enviarReal(p: Parcela) {
     const c = aberto!.contrato;
@@ -140,6 +169,58 @@ export default function ConsultasPage() {
 
       {erro && <section className="panel"><p style={{ color: "#8d1c0f" }}>{erro}</p><p className="note">Se aparecer "painel_sem_senha", defina DASHBOARD_BASIC_USER/PASS no Railway.</p></section>}
       {loading && <section className="panel"><p>Carregando do Sienge…</p></section>}
+
+      {regua && (
+        <section className="panel">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0 }}>Régua de cobrança (automática)</h2>
+            <button className="ghost" disabled={rodando} onClick={rodarRegua} style={envioLiberado ? { borderColor: "#8d1c0f", color: "#8d1c0f" } : undefined}>{rodando ? "Rodando…" : "Rodar régua agora"}</button>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+            {regua.regras.map(r => (
+              <button key={r.name} className={`pill ${r.enabled ? "on" : "off"}`} onClick={() => toggleRegua(r.name, !r.enabled)}>
+                {r.enabled ? "✅" : "⛔"} {r.name} ({r.name === "D-10" ? "10 dias antes" : r.name === "D0" ? "vence hoje" : "atraso 1 dia"})
+              </button>
+            ))}
+            <span className="note">clique pra ligar/desligar cada etapa</span>
+          </div>
+          <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
+            Roda 1×/dia (cron). Dispara as etapas ativas das parcelas em aberto, lendo direto do Sienge. As travas de envio valem igual: fora da allowlist, fica registrado sem enviar.
+          </p>
+
+          {runResumo && (
+            <div style={{ marginTop: 12, borderTop: "1px solid #eee", paddingTop: 12 }}>
+              {runResumo.erro ? <p style={{ color: "#8d1c0f" }}>{runResumo.erro}</p> : (
+                <p style={{ margin: 0 }}>
+                  <strong>Resultado:</strong> {runResumo.enviados} enviado(s) · {runResumo.dryRun} dry-run · {runResumo.bloqueados} bloqueado(s) · {runResumo.semTelefone} sem telefone · {runResumo.jaEnviados} já enviados · {runResumo.erros} erro(s)
+                  {runResumo.skipped ? ` · (${runResumo.skipped})` : ""} — de {runResumo.contratos} contrato(s), {runResumo.elegiveis} parcela(s) elegível(is) hoje.
+                </p>
+              )}
+            </div>
+          )}
+
+          {regua.recentes.length > 0 && (
+            <div style={{ overflowX: "auto", marginTop: 12 }}>
+              <table>
+                <thead><tr><th>Quando</th><th>Etapa</th><th>Vencimento</th><th style={{ textAlign: "right" }}>Valor</th><th>Telefone</th><th>Status</th><th>Boleto</th></tr></thead>
+                <tbody>
+                  {regua.recentes.map((s, i) => (
+                    <tr key={i}>
+                      <td style={{ whiteSpace: "nowrap" }}>{new Date(s.quando).toLocaleString("pt-BR", { timeZone: "America/Maceio" })}</td>
+                      <td>{s.etapa}</td>
+                      <td>{s.vencimento}</td>
+                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{brl(s.valor)}</td>
+                      <td>{s.telefone}</td>
+                      <td>{statusTag(s.status)}{s.motivo ? <span className="note"> {s.motivo}</span> : ""}</td>
+                      <td>{s.status === "SENT" ? (s.boletoSent ? "PDF ✅" : "link") : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       {grupos && (
         <>

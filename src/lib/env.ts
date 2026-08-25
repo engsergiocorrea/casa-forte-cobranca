@@ -20,6 +20,8 @@ const schema = z.object({
   // personType = valor aceito para pessoa física (ex.: definido pela API).
   SIENGE_WRITE_DRY_RUN: z.string().default("true").transform((v) => v.toLowerCase() !== "false"),
   SIENGE_CUSTOMER_TYPE_ID: z.string().default(""),
+  // Subtipo de cliente (opcional) — ex.: "CASA FORTE" (código 1).
+  SIENGE_CUSTOMER_SUBTYPE_ID: z.string().default(""),
   // "F" = pessoa física (confirmado na Model do POST /customers do Sienge).
   SIENGE_PERSON_TYPE_FISICA: z.string().default("F"),
   // Gênero (obrigatório no Sienge; contrato não traz) e correspondência —

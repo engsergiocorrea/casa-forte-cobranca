@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
   const e = env();
   const dryRun = e.SIENGE_WRITE_DRY_RUN;
-  const cfg = { typeId: e.SIENGE_CUSTOMER_TYPE_ID, personType: e.SIENGE_PERSON_TYPE_FISICA, sex: e.SIENGE_DEFAULT_SEX, mailing: e.SIENGE_DEFAULT_MAILING };
+  const cfg = { typeId: e.SIENGE_CUSTOMER_TYPE_ID, personType: e.SIENGE_PERSON_TYPE_FISICA, sex: e.SIENGE_DEFAULT_SEX, mailing: e.SIENGE_DEFAULT_MAILING, subtypeId: e.SIENGE_CUSTOMER_SUBTYPE_ID };
 
   // Para gravar de verdade, os campos obrigatórios do Sienge precisam estar
   // configurados: typeId, personType, gênero e correspondência.

@@ -36,6 +36,12 @@ describe("mapPessoaToSienge", () => {
     expect("sex" in out.naturalPersonData).toBe(false);
     expect("mailingAddress" in out.naturalPersonData).toBe(false);
   });
+  it("inclui subtypeIds quando o subtipo é configurado", () => {
+    const out = mapPessoaToSienge({ nome: "X", cpf: "1" }, { typeId: "1", personType: "F", subtypeId: "1" });
+    expect(out.typeId).toBe(1);
+    expect(out.subtypeIds).toEqual([1]);
+    expect(out.foreigner).toBe("N");
+  });
   it("cônjuge entra embutido como spouse", () => {
     const out = mapPessoaToSienge({ nome: "João", cpf: "111", conjuge: { nome: "Maria", cpf: "222" } }, cfg);
     expect(out.naturalPersonData.spouse.name).toBe("Maria");

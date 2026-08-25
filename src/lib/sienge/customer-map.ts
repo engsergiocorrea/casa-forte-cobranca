@@ -45,7 +45,7 @@ function pruneUndefined<T extends Record<string, any>>(o: T): T {
 
 export function mapPessoaToSienge(
   p: PessoaContrato,
-  cfg: { typeId: string; personType: string; sex?: string; mailing?: string },
+  cfg: { typeId: string; personType: string; sex?: string; mailing?: string; subtypeId?: string },
 ): any {
   const cpf = dig(p.cpf);
   const phone = splitPhoneBR(p.telefone);
@@ -76,6 +76,7 @@ export function mapPessoaToSienge(
     personType: cfg.personType || undefined, // "F" = pessoa física
     foreigner: "N",                          // comprador brasileiro por padrão
     typeId: cfg.typeId ? Number(cfg.typeId) : undefined,
+    subtypeIds: cfg.subtypeId ? [Number(cfg.subtypeId)] : undefined,
     naturalPersonData,
     phones: phone ? [pruneUndefined({ ddd: phone.ddd, number: phone.number, main: true })] : undefined,
   });

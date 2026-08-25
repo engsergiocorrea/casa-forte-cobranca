@@ -21,8 +21,40 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return await r.text() as T;
 }
 
+// POST ao Sienge (escrita). Retorna status + id extraído do Location/corpo.
+// Só deve ser chamado quando a trava SIENGE_WRITE_DRY_RUN estiver desligada —
+// o gate fica na rota, não aqui.
+async function postSienge(path: string, payload: unknown): Promise<{ status: number; id: number | null; location: string | null }> {
+  const r = await fetch(`${baseUrl()}${path}`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: authHeader() },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(20_000),
+    cache: "no-store",
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`Sienge ${r.status} POST ${path}: ${text.slice(0, 500)}`);
+  const location = r.headers.get("location");
+  let id: number | null = null;
+  if (location) { const m = location.match(/(\d+)\/?$/); if (m) id = Number(m[1]); }
+  if (!id && text) { try { const b: any = JSON.parse(text); id = Number(b?.id ?? b?.customerId) || null; } catch { /* sem corpo JSON */ } }
+  return { status: r.status, id, location };
+}
+
 export const sienge = {
   getCustomer: (id: number) => request<any>(`/customers/${id}`),
+  // Busca cliente por CPF para deduplicar antes de criar. Filtra pelo CPF exato
+  // no resultado (se a API ignorar o parâmetro, ainda assim só casa o exato).
+  searchCustomerByCpf: async (cpf: string) => {
+    const d = String(cpf ?? "").replace(/\D/g, "");
+    if (!d) return null;
+    const raw = await request<any>(`/customers?cpf=${d}`);
+    const rows = (Array.isArray(raw) ? raw : (raw?.results ?? raw?.data ?? [])) as any[];
+    const match = (r: any) => String(r?.cpf ?? r?.naturalPersonData?.cpf ?? "").replace(/\D/g, "") === d;
+    return rows.find(match) ?? null;
+  },
+  // Cria cliente no Sienge (escrita). Ver postSienge/gate na rota.
+  createCustomer: (payload: unknown) => postSienge(`/customers`, payload),
   getSalesContract: (id: number) => request<any>(`/sales-contracts/${id}`),
   getUnit: (id: number) => request<any>(`/units/${id}`),
   getReceivableBill: (billId: number) => request<any>(`/accounts-receivable/receivable-bills/${billId}`),

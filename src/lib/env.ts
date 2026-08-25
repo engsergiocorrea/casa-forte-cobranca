@@ -15,6 +15,12 @@ const schema = z.object({
   SIENGE_USERNAME: z.string().min(1),
   SIENGE_PASSWORD: z.string().min(1),
   SIENGE_WEBHOOK_TOKEN: z.string().min(16),
+  // Escrita no Sienge (cadastro de cliente). Trava própria: só grava de verdade
+  // com SIENGE_WRITE_DRY_RUN=false. typeId = "Tipo de Cliente" do Sienge;
+  // personType = valor aceito para pessoa física (ex.: definido pela API).
+  SIENGE_WRITE_DRY_RUN: z.string().default("true").transform((v) => v.toLowerCase() !== "false"),
+  SIENGE_CUSTOMER_TYPE_ID: z.string().default(""),
+  SIENGE_PERSON_TYPE_FISICA: z.string().default(""),
   META_GRAPH_API_VERSION: z.string().min(2),
   WHATSAPP_PHONE_NUMBER_ID: z.string().default(""),
   WHATSAPP_WABA_ID: z.string().default(""),

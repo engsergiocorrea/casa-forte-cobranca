@@ -34,6 +34,7 @@ export default function ConsultasPage() {
   const [regua, setRegua] = useState<Regua | null>(null);
   const [runResumo, setRunResumo] = useState<any>(null);
   const [rodando, setRodando] = useState(false);
+  const [amostra, setAmostra] = useState<Record<string, any[]> | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -47,6 +48,7 @@ export default function ConsultasPage() {
         if (s?.ok) setStatus(s.status);
         if (pf?.ok) setPre({ gate: pf.gate, templates: pf.templates });
         if (rg?.ok) setRegua({ regras: rg.regras, recentes: rg.recentes });
+        fetch("/api/consultas/sienge?action=amostra-cliente").then(r => r.json()).then(d => { if (d?.ok) setAmostra(d.valores); }).catch(() => {});
         if (!e?.ok) throw new Error(e?.detail || e?.error || "falha ao carregar");
         setGrupos(e.empreendimentos);
       } catch (err: any) { setErro(String(err?.message ?? err)); }
@@ -169,6 +171,24 @@ export default function ConsultasPage() {
 
       {erro && <section className="panel"><p style={{ color: "#8d1c0f" }}>{erro}</p><p className="note">Se aparecer "painel_sem_senha", defina DASHBOARD_BASIC_USER/PASS no Railway.</p></section>}
       {loading && <section className="panel"><p>Carregando do Sienge…</p></section>}
+
+      {amostra && (
+        <section className="panel">
+          <h2 style={{ marginTop: 0, marginBottom: 6 }}>Cadastro automático de cliente no Sienge — códigos detectados</h2>
+          <p className="note" style={{ marginTop: 0 }}>Valores usados nos clientes que já existem no seu Sienge. Use-os pra configurar as variáveis do cadastro automático (Railway).</p>
+          <div style={{ overflowX: "auto" }}>
+            <table>
+              <thead><tr><th>Variável (Railway)</th><th>Campo Sienge</th><th>Valores detectados</th></tr></thead>
+              <tbody>
+                <tr><td>SIENGE_PERSON_TYPE_FISICA</td><td>personType</td><td>{(amostra.personType ?? []).join(", ") || <span className="note">nenhum — ver aba "Model"</span>}</td></tr>
+                <tr><td>SIENGE_CUSTOMER_TYPE_ID</td><td>typeId (Tipo de Cliente)</td><td>{(amostra.typeId ?? []).join(", ") || <span className="note">vazio — crie um "Tipo de Cliente" no Sienge</span>}</td></tr>
+                <tr><td>SIENGE_DEFAULT_SEX</td><td>sex (Gênero)</td><td>{(amostra.sex ?? []).join(", ") || <span className="note">—</span>}</td></tr>
+                <tr><td>SIENGE_DEFAULT_MAILING</td><td>mailingAddress (Correspondência)</td><td>{(amostra.mailingAddress ?? []).join(", ") || <span className="note">—</span>}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {regua && (
         <section className="panel">

@@ -43,7 +43,10 @@ function pruneUndefined<T extends Record<string, any>>(o: T): T {
   return o;
 }
 
-export function mapPessoaToSienge(p: PessoaContrato, cfg: { typeId: string; personType: string }): any {
+export function mapPessoaToSienge(
+  p: PessoaContrato,
+  cfg: { typeId: string; personType: string; sex?: string; mailing?: string },
+): any {
   const cpf = dig(p.cpf);
   const phone = splitPhoneBR(p.telefone);
   const spouse = p.conjuge && txt(p.conjuge.nome)
@@ -64,11 +67,14 @@ export function mapPessoaToSienge(p: PessoaContrato, cfg: { typeId: string; pers
     birthDate: toIsoDate(p.nascimento),
     profession: txt(p.profissao),
     numberIdentityCard: txt(p.rg),
+    sex: cfg.sex || undefined,          // obrigatório no Sienge (default "Não informar")
+    mailingAddress: cfg.mailing || undefined, // obrigatório (default Residencial)
     spouse,
   });
 
   return pruneUndefined({
-    personType: cfg.personType || undefined,
+    personType: cfg.personType || undefined, // "F" = pessoa física
+    foreigner: "N",                          // comprador brasileiro por padrão
     typeId: cfg.typeId ? Number(cfg.typeId) : undefined,
     naturalPersonData,
     phones: phone ? [pruneUndefined({ ddd: phone.ddd, number: phone.number, main: true })] : undefined,

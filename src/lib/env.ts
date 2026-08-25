@@ -20,7 +20,12 @@ const schema = z.object({
   // personType = valor aceito para pessoa física (ex.: definido pela API).
   SIENGE_WRITE_DRY_RUN: z.string().default("true").transform((v) => v.toLowerCase() !== "false"),
   SIENGE_CUSTOMER_TYPE_ID: z.string().default(""),
-  SIENGE_PERSON_TYPE_FISICA: z.string().default(""),
+  // "F" = pessoa física (confirmado na Model do POST /customers do Sienge).
+  SIENGE_PERSON_TYPE_FISICA: z.string().default("F"),
+  // Gênero (obrigatório no Sienge; contrato não traz) e correspondência —
+  // códigos reais confirmados pela detecção (action=amostra-cliente).
+  SIENGE_DEFAULT_SEX: z.string().default(""),
+  SIENGE_DEFAULT_MAILING: z.string().default(""),
   META_GRAPH_API_VERSION: z.string().min(2),
   WHATSAPP_PHONE_NUMBER_ID: z.string().default(""),
   WHATSAPP_WABA_ID: z.string().default(""),

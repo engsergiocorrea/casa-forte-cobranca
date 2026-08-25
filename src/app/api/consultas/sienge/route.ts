@@ -197,6 +197,30 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Amostra de clientes reais do Sienge → mostra os CÓDIGOS aceitos
+    // (personType/typeId/sex/mailingAddress/civilStatus) p/ configurar o
+    // cadastro automático sem adivinhar. Sem PII (nome/CPF/e-mail não saem).
+    if (action === "amostra-cliente") {
+      const raw = await sienge.listCustomers(5, 0);
+      const rows = (Array.isArray(raw) ? raw : (raw?.results ?? raw?.data ?? [])) as any[];
+      const pick = (c: any) => ({
+        personType: c?.personType ?? null,
+        typeId: c?.typeId ?? c?.customerTypeId ?? c?.type?.id ?? null,
+        sex: c?.naturalPersonData?.sex ?? c?.sex ?? null,
+        mailingAddress: c?.naturalPersonData?.mailingAddress ?? c?.mailingAddress ?? null,
+        civilStatus: c?.naturalPersonData?.civilStatus ?? c?.civilStatus ?? null,
+      });
+      const amostra = rows.map(pick);
+      const distinct = (k: keyof ReturnType<typeof pick>) => [...new Set(amostra.map((a) => a[k]).filter((v) => v != null))];
+      return NextResponse.json({
+        ok: true, action,
+        valores: {
+          personType: distinct("personType"), typeId: distinct("typeId"),
+          sex: distinct("sex"), mailingAddress: distinct("mailingAddress"), civilStatus: distinct("civilStatus"),
+        },
+      });
+    }
+
     // Estado da régua automática: regras (etapas on/off) + últimos envios.
     if (action === "regua") {
       const rules = await db.collectionRule.findMany({ orderBy: { dayOffset: "asc" } });

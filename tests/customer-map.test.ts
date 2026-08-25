@@ -26,6 +26,16 @@ describe("mapPessoaToSienge", () => {
     expect(out.phones[0]).toEqual({ ddd: "82", number: "988887777", main: true });
     expect("civilStatus" in out.naturalPersonData).toBe(false);
   });
+  it("inclui gênero e correspondência quando configurados", () => {
+    const out = mapPessoaToSienge({ nome: "X", cpf: "1" }, { typeId: "7", personType: "PF", sex: "N", mailing: "R" });
+    expect(out.naturalPersonData.sex).toBe("N");
+    expect(out.naturalPersonData.mailingAddress).toBe("R");
+  });
+  it("omite gênero/correspondência quando não configurados (dry-run)", () => {
+    const out = mapPessoaToSienge({ nome: "X", cpf: "1" }, cfg);
+    expect("sex" in out.naturalPersonData).toBe(false);
+    expect("mailingAddress" in out.naturalPersonData).toBe(false);
+  });
   it("cônjuge entra embutido como spouse", () => {
     const out = mapPessoaToSienge({ nome: "João", cpf: "111", conjuge: { nome: "Maria", cpf: "222" } }, cfg);
     expect(out.naturalPersonData.spouse.name).toBe("Maria");

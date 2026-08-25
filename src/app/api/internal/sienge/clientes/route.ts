@@ -18,11 +18,18 @@ export async function POST(req: NextRequest) {
   }
   const e = env();
   const dryRun = e.SIENGE_WRITE_DRY_RUN;
-  const cfg = { typeId: e.SIENGE_CUSTOMER_TYPE_ID, personType: e.SIENGE_PERSON_TYPE_FISICA };
+  const cfg = { typeId: e.SIENGE_CUSTOMER_TYPE_ID, personType: e.SIENGE_PERSON_TYPE_FISICA, sex: e.SIENGE_DEFAULT_SEX, mailing: e.SIENGE_DEFAULT_MAILING };
 
-  // Para gravar de verdade é obrigatório ter typeId + personType configurados.
-  if (!dryRun && (!cfg.typeId || !cfg.personType)) {
-    return NextResponse.json({ ok: false, error: "config_incompleta", detail: "Defina SIENGE_CUSTOMER_TYPE_ID e SIENGE_PERSON_TYPE_FISICA para gravar no Sienge." }, { status: 409 });
+  // Para gravar de verdade, os campos obrigatórios do Sienge precisam estar
+  // configurados: typeId, personType, gênero e correspondência.
+  if (!dryRun) {
+    const faltando = [
+      !cfg.typeId && "SIENGE_CUSTOMER_TYPE_ID",
+      !cfg.personType && "SIENGE_PERSON_TYPE_FISICA",
+      !cfg.sex && "SIENGE_DEFAULT_SEX",
+      !cfg.mailing && "SIENGE_DEFAULT_MAILING",
+    ].filter(Boolean);
+    if (faltando.length) return NextResponse.json({ ok: false, error: "config_incompleta", detail: `Defina no Railway: ${faltando.join(", ")}.` }, { status: 409 });
   }
 
   let body: any;

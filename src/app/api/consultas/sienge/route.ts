@@ -8,7 +8,7 @@ import { sendWhatsAppTemplate } from "@/lib/whatsapp/client";
 import { getTemplateInfo } from "@/lib/whatsapp/templates";
 import { evolutionSendText, evolutionSendDocument } from "@/lib/whatsapp/evolution";
 import { canSendTo } from "@/lib/safety";
-import { runReguaFromSienge, ensureCollectionRules } from "@/lib/collection/regua";
+import { runReguaFromSienge, ensureCollectionRules, listarInadimplentes, enviarLembretes } from "@/lib/collection/regua";
 import { db } from "@/lib/db";
 import { redact, redactText } from "@/lib/redact";
 
@@ -221,6 +221,12 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Lista de inadimplentes (parcelas vencidas em aberto) p/ a cobrança curada.
+    if (action === "inadimplentes") {
+      const itens = await listarInadimplentes(new Date());
+      return NextResponse.json({ ok: true, action, total: itens.length, itens });
+    }
+
     // Estado da régua automática: regras (etapas on/off) + últimos envios.
     if (action === "regua") {
       await ensureCollectionRules(); // cria as 3 etapas se faltarem (seed não roda no deploy)
@@ -281,6 +287,14 @@ export async function POST(req: NextRequest) {
     if (acao === "regua-rodar") {
       const resumo = await runReguaFromSienge(new Date());
       return NextResponse.json({ ok: true, action: acao, resumo });
+    }
+
+    // Envia lembrete de atraso só para as parcelas marcadas (cobrança curada).
+    if (acao === "enviar-lembretes") {
+      const itens = Array.isArray(body.itens) ? body.itens : [];
+      if (!itens.length) return NextResponse.json({ ok: false, error: "sem_itens" }, { status: 400 });
+      const resultado = await enviarLembretes(itens.slice(0, 200), new Date());
+      return NextResponse.json({ ok: true, action: acao, ...resultado });
     }
 
     if (acao !== "simular" && acao !== "enviar") {

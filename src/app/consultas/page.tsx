@@ -13,6 +13,7 @@ type Grupo = { empreendimento: string; contratos: Contrato[] };
 type Parcela = { installmentId: number; vencimento: string; saldo: number; saldoFmt: string; paga: boolean; boletoGerado: boolean; etapa: string | null; elegivelHoje: boolean };
 type TemplateInfo = { name: string; found: boolean; status: string | null; bodyParamCount: number | null; hasUrlButton: boolean; urlButtonHasVariable: boolean; error?: string };
 type Preflight = { gate: { provider: "evolution" | "meta"; appMode: string; outboundEnabled: boolean; dryRun: boolean; allowAllProduction: boolean; allowlistCount: number; credsPresent: boolean }; templates: TemplateInfo[] };
+type Inadimplente = { billId: number; installmentId: number; numero: string | null; empreendimento: string; imovel: string; clienteNome: string | null; customerId: number | null; vencimento: string; diasAtraso: number; saldo: number; saldoFmt: string; boletoGerado: boolean };
 type Regra = { name: string; dayOffset: number; enabled: boolean; sendHour: number };
 type EnvioLog = { etapa: string; vencimento: string; valor: number; status: string; motivo: string | null; boletoSent: boolean; quando: string; telefone: string };
 type Regua = { regras: Regra[]; recentes: EnvioLog[] };
@@ -35,6 +36,11 @@ export default function ConsultasPage() {
   const [runResumo, setRunResumo] = useState<any>(null);
   const [rodando, setRodando] = useState(false);
   const [amostra, setAmostra] = useState<Record<string, any[]> | null>(null);
+  const [inad, setInad] = useState<Inadimplente[] | null>(null);
+  const [carregandoInad, setCarregandoInad] = useState(false);
+  const [selInad, setSelInad] = useState<Set<string>>(new Set());
+  const [enviandoInad, setEnviandoInad] = useState(false);
+  const [resInad, setResInad] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -72,6 +78,30 @@ export default function ConsultasPage() {
     const d = await fetch("/api/consultas/sienge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "regua-rodar" }) }).then(r => r.json()).catch((e) => ({ ok: false, error: String(e) }));
     setRunResumo(d.ok ? d.resumo : { erro: d.detail || d.error });
     setRodando(false); recarregarRegua();
+  }
+  const chaveInad = (i: Inadimplente) => `${i.billId}:${i.installmentId}`;
+  async function carregarInadimplentes() {
+    setCarregandoInad(true); setResInad(null);
+    try {
+      const d = await fetch("/api/consultas/sienge?action=inadimplentes").then(r => r.json());
+      if (d?.ok) { setInad(d.itens); setSelInad(new Set()); }
+      else setErro(d?.detail || d?.error || "falha ao listar inadimplentes");
+    } catch (e: any) { setErro(String(e?.message ?? e)); }
+    finally { setCarregandoInad(false); }
+  }
+  function toggleSel(k: string) { setSelInad(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; }); }
+  function selecionarTodos(lista: Inadimplente[]) {
+    setSelInad(s => s.size === lista.length ? new Set() : new Set(lista.map(chaveInad)));
+  }
+  async function enviarLembretes() {
+    const alvo = (inad ?? []).filter(i => selInad.has(chaveInad(i)));
+    if (!alvo.length) { alert("Marque pelo menos um inadimplente."); return; }
+    if (!confirm(`Enviar lembrete de cobrança para ${alvo.length} parcela(s)?\n\nSó sai de verdade para números na allowlist — o resto fica registrado como bloqueado.`)) return;
+    setEnviandoInad(true); setResInad(null);
+    const itens = alvo.map(i => ({ billId: i.billId, installmentId: i.installmentId, customerId: i.customerId, nome: i.clienteNome, imovel: i.imovel }));
+    const d = await fetch("/api/consultas/sienge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "enviar-lembretes", itens }) }).then(r => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+    setResInad(d.ok ? d : { erro: d.detail || d.error });
+    setEnviandoInad(false);
   }
   const statusTag = (s: string) => {
     const cor = s === "SENT" ? { background: "#0b3d1e", color: "#fff" } : undefined;
@@ -171,6 +201,67 @@ export default function ConsultasPage() {
 
       {erro && <section className="panel"><p style={{ color: "#8d1c0f" }}>{erro}</p><p className="note">Se aparecer "painel_sem_senha", defina DASHBOARD_BASIC_USER/PASS no Railway.</p></section>}
       {loading && <section className="panel"><p>Carregando do Sienge…</p></section>}
+
+      {grupos && (
+        <section className="panel">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0 }}>Cobrança por inadimplência</h2>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {inad && <button className="ghost" disabled={carregandoInad} onClick={carregarInadimplentes}>Atualizar</button>}
+              {inad && selInad.size > 0 && <button className="ghost" disabled={enviandoInad} style={{ borderColor: "#8d1c0f", color: "#8d1c0f" }} onClick={enviarLembretes}>{enviandoInad ? "Enviando…" : `Enviar lembrete (${selInad.size})`}</button>}
+            </div>
+          </div>
+
+          {!inad ? (
+            <div style={{ marginTop: 10 }}>
+              <button className="ghost" disabled={carregandoInad} onClick={carregarInadimplentes}>{carregandoInad ? "Buscando no Sienge…" : "Carregar inadimplentes"}</button>
+              <p className="note" style={{ marginBottom: 0 }}>Lista todas as parcelas vencidas em aberto (lê direto do Sienge). Você marca quem quer e envia o lembrete só pros marcados.</p>
+            </div>
+          ) : inad.length === 0 ? (
+            <p className="note" style={{ marginTop: 12 }}>🎉 Nenhuma parcela vencida em aberto.</p>
+          ) : (
+            <>
+              <p className="note" style={{ marginTop: 8 }}>{inad.length} parcela(s) em atraso · {selInad.size} marcada(s). Envio real só para números na allowlist.</p>
+              <div style={{ overflowX: "auto", marginTop: 6 }}>
+                <table>
+                  <thead><tr>
+                    <th><input type="checkbox" checked={selInad.size === inad.length && inad.length > 0} onChange={() => selecionarTodos(inad)} /></th>
+                    <th>Cliente</th><th>Empreendimento / unidade</th><th>Contrato</th><th>Vencimento</th><th>Atraso</th><th style={{ textAlign: "right" }}>Saldo</th><th>Boleto</th>
+                  </tr></thead>
+                  <tbody>
+                    {inad.map((i) => {
+                      const k = chaveInad(i);
+                      return (
+                        <tr key={k} style={{ background: selInad.has(k) ? "#f0f6f0" : undefined }}>
+                          <td><input type="checkbox" checked={selInad.has(k)} onChange={() => toggleSel(k)} /></td>
+                          <td>{i.clienteNome ?? "—"}</td>
+                          <td>{i.imovel}</td>
+                          <td>{i.numero}</td>
+                          <td>{i.vencimento}</td>
+                          <td><span className="tag off">{i.diasAtraso} dia(s)</span></td>
+                          <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{i.saldoFmt}</td>
+                          <td>{i.boletoGerado ? "✅" : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {resInad && (
+            <div style={{ marginTop: 12, borderTop: "1px solid #eee", paddingTop: 12 }}>
+              {resInad.erro ? <p style={{ color: "#8d1c0f" }}>{resInad.erro}</p> : (
+                <>
+                  <p style={{ margin: 0 }}><strong>Resultado:</strong> {Object.entries(resInad.contagem ?? {}).map(([k, v]) => `${v} ${k}`).join(" · ") || "—"} (de {resInad.total})</p>
+                  <p className="note" style={{ marginBottom: 0 }}>SENT = enviado · DRY_RUN/BLOCKED = trava segurou · PAGA = já quitada · NO_PHONE = sem telefone no Sienge.</p>
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {amostra && (
         <section className="panel">

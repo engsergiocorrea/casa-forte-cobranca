@@ -194,9 +194,67 @@ export async function listarInadimplentes(now = new Date()): Promise<Inadimplent
 
 export type ItemLembrete = { billId: number; installmentId: number; customerId?: number; nome?: string; imovel?: string; to?: string };
 
-// Envia o lembrete de atraso (mensagem D+1) para uma lista EXPLÍCITA de parcelas
-// (as que o usuário marcou). Revalida o saldo no Sienge antes (nunca cobra quem
-// já pagou), passa pela trava canSendTo e registra em CollectionSend.
+// Prepara UM lembrete (mesma base para a prévia e o envio real, garantindo que
+// o que você revisa é idêntico ao que sai): revalida a parcela no Sienge,
+// resolve o telefone do cadastro e monta a mensagem de atraso (D+1) + boleto.
+type LembretePronto = {
+  billId: number; installmentId: number; numero: string; saldo: number; dueDate: Date;
+  dados: { nome: string; imovel: string; vencimento: string; valor: string };
+  texto: string; boletoUrl: string | null;
+};
+async function prepararLembrete(it: ItemLembrete): Promise<{ skip: string } | LembretePronto> {
+  const billId = Number(it.billId), installmentId = Number(it.installmentId);
+  const rows = normalizeInstallmentsList(await sienge.getInstallments(billId));
+  const p = rows.find((r) => r.installmentId === installmentId);
+  if (!p) return { skip: "NAO_ENCONTRADA" };
+  if (p.paid || p.balanceDue <= 0) return { skip: "PAGA" };
+
+  let numero = String(it.to ?? "").trim();
+  if (!numero && it.customerId) {
+    try { numero = normalizeCustomerPhones(await sienge.getCustomer(it.customerId))[0]?.numero ?? ""; } catch { /* sem telefone */ }
+  }
+  let boleto: { url: string | null; linhaDigitavel: string | null } = { url: null, linhaDigitavel: null };
+  try { boleto = normalizePaymentSlip(await sienge.getPaymentSlip(billId, installmentId)); } catch { /* segue sem boleto */ }
+
+  const nome = String(it.nome ?? "cliente").trim().split(/\s+/)[0];
+  const dados = { nome, imovel: String(it.imovel ?? ""), vencimento: fmtData(p.dueDate), valor: fmtBRL(p.balanceDue) };
+  const texto = `${previewMensagem("D+1", dados)}${boleto.url ? `\n\nBoleto: ${boleto.url}` : ""}${boleto.linhaDigitavel ? `\nLinha digitável: ${boleto.linhaDigitavel}` : ""}`;
+  return { billId, installmentId, numero, saldo: p.balanceDue, dueDate: p.dueDate, dados, texto, boletoUrl: boleto.url };
+}
+
+function gateReason(numero: string, allowlist: string[], e: ReturnType<typeof env>) {
+  if (!numero) return { enviaria: false, motivo: "NO_PHONE" as const };
+  const gate = canSendTo(numero, { appMode: e.APP_MODE, outboundEnabled: e.OUTBOUND_MESSAGING_ENABLED, dryRun: e.WHATSAPP_DRY_RUN, allowAllProduction: e.WHATSAPP_ALLOW_ALL_PRODUCTION, allowlist });
+  return { enviaria: gate.allowed, motivo: gate.allowed ? "PERMITIDO" : gate.reason };
+}
+
+// PRÉVIA (não envia nada): monta, para cada parcela marcada, quem receberia, o
+// telefone e a mensagem exata — para você CONFERIR os clientes antes do envio.
+export async function preverLembretes(itens: ItemLembrete[]) {
+  const e = env();
+  const allowlist = e.WHATSAPP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
+  const previews: any[] = [];
+  for (const it of itens) {
+    const billId = Number(it.billId), installmentId = Number(it.installmentId);
+    try {
+      const r = await prepararLembrete(it);
+      if ("skip" in r) { previews.push({ billId, installmentId, nome: it.nome ?? null, enviaria: false, motivo: r.skip }); continue; }
+      const g = gateReason(r.numero, allowlist, e);
+      previews.push({
+        billId, installmentId, nome: r.dados.nome, telefone: r.numero || null,
+        imovel: r.dados.imovel, vencimento: r.dados.vencimento, saldoFmt: r.dados.valor,
+        temBoleto: !!r.boletoUrl, mensagem: r.texto, enviaria: g.enviaria, motivo: g.motivo,
+      });
+    } catch (err: any) {
+      previews.push({ billId, installmentId, enviaria: false, motivo: "ERRO", detail: String(err?.message ?? err).slice(0, 200) });
+    }
+  }
+  const enviaraveis = previews.filter((p) => p.enviaria).length;
+  return { total: itens.length, enviaraveis, previews };
+}
+
+// ENVIO REAL (o último comando é do usuário). Revalida no Sienge, passa por
+// canSendTo e registra em CollectionSend.
 export async function enviarLembretes(itens: ItemLembrete[], now = new Date()) {
   const e = env();
   const allowlist = e.WHATSAPP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
@@ -205,21 +263,9 @@ export async function enviarLembretes(itens: ItemLembrete[], now = new Date()) {
   for (const it of itens) {
     const billId = Number(it.billId), installmentId = Number(it.installmentId);
     try {
-      const rows = normalizeInstallmentsList(await sienge.getInstallments(billId));
-      const p = rows.find((r) => r.installmentId === installmentId);
-      if (!p) { resultados.push({ billId, installmentId, status: "NAO_ENCONTRADA" }); continue; }
-      if (p.paid || p.balanceDue <= 0) { resultados.push({ billId, installmentId, status: "PAGA" }); continue; }
-
-      let numero = String(it.to ?? "").trim();
-      if (!numero && it.customerId) {
-        try { numero = normalizeCustomerPhones(await sienge.getCustomer(it.customerId))[0]?.numero ?? ""; } catch { /* sem telefone */ }
-      }
-      let boleto: { url: string | null; linhaDigitavel: string | null } = { url: null, linhaDigitavel: null };
-      try { boleto = normalizePaymentSlip(await sienge.getPaymentSlip(billId, installmentId)); } catch { /* segue sem boleto */ }
-
-      const nome = String(it.nome ?? "cliente").trim().split(/\s+/)[0];
-      const dados = { nome, imovel: String(it.imovel ?? ""), vencimento: fmtData(p.dueDate), valor: fmtBRL(p.balanceDue) };
-      const texto = `${previewMensagem("D+1", dados)}${boleto.url ? `\n\nBoleto: ${boleto.url}` : ""}${boleto.linhaDigitavel ? `\nLinha digitável: ${boleto.linhaDigitavel}` : ""}`;
+      const prep = await prepararLembrete(it);
+      if ("skip" in prep) { resultados.push({ billId, installmentId, status: prep.skip }); continue; }
+      const { numero, texto, boletoUrl, saldo, dueDate, dados } = prep;
 
       let status = "", motivo: string | null = null, messageId: string | null = null, boletoSent = false, detail: string | null = null;
       if (!numero) { status = "NO_PHONE"; }
@@ -231,15 +277,15 @@ export async function enviarLembretes(itens: ItemLembrete[], now = new Date()) {
           if (!r.success) { status = "ERROR"; detail = String(r.error ?? "").slice(0, 200); }
           else {
             messageId = r.messageId; status = "SENT";
-            if (boleto.url) { const d = await evolutionSendDocument({ to: numero, mediaUrl: boleto.url, fileName: `boleto-${installmentId}.pdf`, caption: `Boleto — ${dados.imovel}` }); boletoSent = !!d.success; }
+            if (boletoUrl) { const d = await evolutionSendDocument({ to: numero, mediaUrl: boletoUrl, fileName: `boleto-${installmentId}.pdf`, caption: `Boleto — ${dados.imovel}` }); boletoSent = !!d.success; }
             await sleep(1200);
           }
         }
       }
       await db.collectionSend.upsert({
         where: { dedupeKey: `manual:${billId}:${installmentId}:${ymd(now)}` },
-        update: { status, motivo, messageId, boletoSent, detail, phone: numero, valor: p.balanceDue, etapa: "D+1", dueDate: p.dueDate },
-        create: { dedupeKey: `manual:${billId}:${installmentId}:${ymd(now)}`, billId, installmentId, etapa: "D+1", dueDate: p.dueDate, valor: p.balanceDue, phone: numero, status, motivo, messageId, boletoSent, detail },
+        update: { status, motivo, messageId, boletoSent, detail, phone: numero, valor: saldo, etapa: "D+1", dueDate },
+        create: { dedupeKey: `manual:${billId}:${installmentId}:${ymd(now)}`, billId, installmentId, etapa: "D+1", dueDate, valor: saldo, phone: numero, status, motivo, messageId, boletoSent, detail },
       });
       resultados.push({ billId, installmentId, nome: dados.nome, status, motivo, boletoSent });
     } catch (err: any) {

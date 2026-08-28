@@ -41,6 +41,8 @@ export default function ConsultasPage() {
   const [selInad, setSelInad] = useState<Set<string>>(new Set());
   const [enviandoInad, setEnviandoInad] = useState(false);
   const [resInad, setResInad] = useState<any>(null);
+  const [revisao, setRevisao] = useState<any>(null);
+  const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -93,15 +95,28 @@ export default function ConsultasPage() {
   function selecionarTodos(lista: Inadimplente[]) {
     setSelInad(s => s.size === lista.length ? new Set() : new Set(lista.map(chaveInad)));
   }
-  async function enviarLembretes() {
-    const alvo = (inad ?? []).filter(i => selInad.has(chaveInad(i)));
-    if (!alvo.length) { alert("Marque pelo menos um inadimplente."); return; }
-    if (!confirm(`Enviar lembrete de cobrança para ${alvo.length} parcela(s)?\n\nSó sai de verdade para números na allowlist — o resto fica registrado como bloqueado.`)) return;
+  const itensSelecionados = () => (inad ?? []).filter(i => selInad.has(chaveInad(i)))
+    .map(i => ({ billId: i.billId, installmentId: i.installmentId, customerId: i.customerId, nome: i.clienteNome, imovel: i.imovel }));
+
+  // Passo 1: revisar (não envia) — mostra quem receberia + a mensagem exata.
+  async function revisarSelecao() {
+    const itens = itensSelecionados();
+    if (!itens.length) { alert("Marque pelo menos um inadimplente."); return; }
+    setRevisando(true); setResInad(null); setRevisao(null);
+    const d = await fetch("/api/consultas/sienge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "prever-lembretes", itens }) }).then(r => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+    setRevisao(d.ok ? d : { erro: d.detail || d.error });
+    setRevisando(false);
+  }
+
+  // Passo 2: o ÚLTIMO comando é seu — confirma e envia de verdade.
+  async function confirmarEnvio() {
+    const itens = itensSelecionados();
+    if (!itens.length) return;
     setEnviandoInad(true); setResInad(null);
-    const itens = alvo.map(i => ({ billId: i.billId, installmentId: i.installmentId, customerId: i.customerId, nome: i.clienteNome, imovel: i.imovel }));
     const d = await fetch("/api/consultas/sienge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "enviar-lembretes", itens }) }).then(r => r.json()).catch((e) => ({ ok: false, error: String(e) }));
     setResInad(d.ok ? d : { erro: d.detail || d.error });
-    setEnviandoInad(false);
+    setEnviandoInad(false); setRevisao(null);
+    carregarInadimplentes();
   }
   const statusTag = (s: string) => {
     const cor = s === "SENT" ? { background: "#0b3d1e", color: "#fff" } : undefined;
@@ -208,7 +223,7 @@ export default function ConsultasPage() {
             <h2 style={{ margin: 0 }}>Cobrança por inadimplência</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {inad && <button className="ghost" disabled={carregandoInad} onClick={carregarInadimplentes}>Atualizar</button>}
-              {inad && selInad.size > 0 && <button className="ghost" disabled={enviandoInad} style={{ borderColor: "#8d1c0f", color: "#8d1c0f" }} onClick={enviarLembretes}>{enviandoInad ? "Enviando…" : `Enviar lembrete (${selInad.size})`}</button>}
+              {inad && selInad.size > 0 && <button className="ghost" disabled={revisando} style={{ borderColor: "#8d1c0f", color: "#8d1c0f" }} onClick={revisarSelecao}>{revisando ? "Preparando…" : `Revisar seleção (${selInad.size})`}</button>}
             </div>
           </div>
 
@@ -248,6 +263,46 @@ export default function ConsultasPage() {
                 </table>
               </div>
             </>
+          )}
+
+          {revisao && (
+            <div style={{ marginTop: 14, borderTop: "2px solid #8d1c0f", paddingTop: 12 }}>
+              {revisao.erro ? <p style={{ color: "#8d1c0f" }}>{revisao.erro}</p> : (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <h3 style={{ margin: 0 }}>Revisão — confira antes de enviar</h3>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className="ghost" onClick={() => setRevisao(null)}>Cancelar</button>
+                      <button className="ghost" disabled={enviandoInad || revisao.enviaraveis === 0} style={{ background: "#8d1c0f", color: "#fff", borderColor: "#8d1c0f" }} onClick={confirmarEnvio}>{enviandoInad ? "Enviando…" : `Confirmar e ENVIAR (${revisao.enviaraveis})`}</button>
+                    </div>
+                  </div>
+                  <p className="note">{revisao.enviaraveis} de {revisao.total} serão enviados de verdade — o resto está bloqueado (fora da allowlist, sem telefone ou já pago). Confira <strong>nome e telefone</strong> de cada um.</p>
+                  <div style={{ overflowX: "auto" }}>
+                    <table>
+                      <thead><tr><th>Cliente</th><th>Telefone</th><th>Imóvel</th><th>Vencimento</th><th style={{ textAlign: "right" }}>Saldo</th><th>Situação</th></tr></thead>
+                      <tbody>
+                        {revisao.previews.map((p: any, i: number) => (
+                          <tr key={i} style={{ opacity: p.enviaria ? 1 : 0.55 }}>
+                            <td>{p.nome ?? "—"}</td>
+                            <td style={{ fontFamily: "monospace" }}>{p.telefone ?? "—"}</td>
+                            <td>{p.imovel ?? "—"}</td>
+                            <td>{p.vencimento ?? "—"}</td>
+                            <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{p.saldoFmt ?? "—"}</td>
+                            <td>{p.enviaria ? <span className="tag" style={{ background: "#0b3d1e", color: "#fff" }}>✅ será enviado</span> : <span className="tag off">⛔ {p.motivo}</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {revisao.previews.some((p: any) => p.enviaria) && (
+                    <details style={{ marginTop: 8 }}>
+                      <summary className="note" style={{ cursor: "pointer" }}>Ver a mensagem que será enviada</summary>
+                      <div className="payload" style={{ whiteSpace: "pre-wrap", background: "#0b3d1e", marginTop: 6 }}>{revisao.previews.find((p: any) => p.enviaria)?.mensagem}</div>
+                    </details>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
           {resInad && (

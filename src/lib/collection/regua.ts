@@ -222,24 +222,32 @@ async function prepararLembrete(it: ItemLembrete): Promise<{ skip: string } | Le
   return { billId, installmentId, numero, saldo: p.balanceDue, dueDate: p.dueDate, dados, texto, boletoUrl: boleto.url };
 }
 
-function gateReason(numero: string, allowlist: string[], e: ReturnType<typeof env>) {
+// Trava do envio MANUAL (revisado): NÃO usa allowlist — a revisão + confirmação
+// do usuário é a segurança. Depende só das travas-mestras (master switch e
+// dry-run). A allowlist continua valendo só na régua AUTOMÁTICA (sem revisão).
+function canSendManual(e: ReturnType<typeof env>): { allowed: boolean; reason: "PERMITIDO" | "MASTER_SWITCH_OFF" | "DRY_RUN" } {
+  if (!e.OUTBOUND_MESSAGING_ENABLED) return { allowed: false, reason: "MASTER_SWITCH_OFF" };
+  if (e.WHATSAPP_DRY_RUN) return { allowed: false, reason: "DRY_RUN" };
+  return { allowed: true, reason: "PERMITIDO" };
+}
+
+function gateReason(numero: string, e: ReturnType<typeof env>) {
   if (!numero) return { enviaria: false, motivo: "NO_PHONE" as const };
-  const gate = canSendTo(numero, { appMode: e.APP_MODE, outboundEnabled: e.OUTBOUND_MESSAGING_ENABLED, dryRun: e.WHATSAPP_DRY_RUN, allowAllProduction: e.WHATSAPP_ALLOW_ALL_PRODUCTION, allowlist });
-  return { enviaria: gate.allowed, motivo: gate.allowed ? "PERMITIDO" : gate.reason };
+  const g = canSendManual(e);
+  return { enviaria: g.allowed, motivo: g.reason };
 }
 
 // PRÉVIA (não envia nada): monta, para cada parcela marcada, quem receberia, o
 // telefone e a mensagem exata — para você CONFERIR os clientes antes do envio.
 export async function preverLembretes(itens: ItemLembrete[]) {
   const e = env();
-  const allowlist = e.WHATSAPP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
   const previews: any[] = [];
   for (const it of itens) {
     const billId = Number(it.billId), installmentId = Number(it.installmentId);
     try {
       const r = await prepararLembrete(it);
       if ("skip" in r) { previews.push({ billId, installmentId, nome: it.nome ?? null, enviaria: false, motivo: r.skip }); continue; }
-      const g = gateReason(r.numero, allowlist, e);
+      const g = gateReason(r.numero, e);
       previews.push({
         billId, installmentId, nome: r.dados.nome, telefone: r.numero || null,
         imovel: r.dados.imovel, vencimento: r.dados.vencimento, saldoFmt: r.dados.valor,
@@ -257,7 +265,6 @@ export async function preverLembretes(itens: ItemLembrete[]) {
 // canSendTo e registra em CollectionSend.
 export async function enviarLembretes(itens: ItemLembrete[], now = new Date()) {
   const e = env();
-  const allowlist = e.WHATSAPP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
   const resultados: any[] = [];
 
   for (const it of itens) {
@@ -270,8 +277,8 @@ export async function enviarLembretes(itens: ItemLembrete[], now = new Date()) {
       let status = "", motivo: string | null = null, messageId: string | null = null, boletoSent = false, detail: string | null = null;
       if (!numero) { status = "NO_PHONE"; }
       else {
-        const gate = canSendTo(numero, { appMode: e.APP_MODE, outboundEnabled: e.OUTBOUND_MESSAGING_ENABLED, dryRun: e.WHATSAPP_DRY_RUN, allowAllProduction: e.WHATSAPP_ALLOW_ALL_PRODUCTION, allowlist });
-        if (!gate.allowed) { motivo = gate.reason; status = (gate.reason === "DRY_RUN" || gate.reason === "MASTER_SWITCH_OFF") ? "DRY_RUN" : "BLOCKED"; }
+        const gate = canSendManual(e); // manual revisado: sem allowlist, só travas-mestras
+        if (!gate.allowed) { motivo = gate.reason; status = "DRY_RUN"; }
         else {
           const r = await evolutionSendText({ to: numero, text: texto });
           if (!r.success) { status = "ERROR"; detail = String(r.error ?? "").slice(0, 200); }

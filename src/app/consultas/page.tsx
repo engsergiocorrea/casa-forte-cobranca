@@ -236,7 +236,7 @@ export default function ConsultasPage() {
             <p className="note" style={{ marginTop: 12 }}>🎉 Nenhuma parcela vencida em aberto.</p>
           ) : (
             <>
-              <p className="note" style={{ marginTop: 8 }}>{inad.length} parcela(s) em atraso · {selInad.size} marcada(s). Envio real só para números na allowlist.</p>
+              <p className="note" style={{ marginTop: 8 }}>{inad.length} parcela(s) em atraso · {selInad.size} marcada(s). Marque, revise e confirme — o envio manual não usa allowlist; depende só das travas-mestras (master switch + dry-run).</p>
               <div style={{ overflowX: "auto", marginTop: 6 }}>
                 <table>
                   <thead><tr>
@@ -276,7 +276,7 @@ export default function ConsultasPage() {
                       <button className="ghost" disabled={enviandoInad || revisao.enviaraveis === 0} style={{ background: "#8d1c0f", color: "#fff", borderColor: "#8d1c0f" }} onClick={confirmarEnvio}>{enviandoInad ? "Enviando…" : `Confirmar e ENVIAR (${revisao.enviaraveis})`}</button>
                     </div>
                   </div>
-                  <p className="note">{revisao.enviaraveis} de {revisao.total} serão enviados de verdade — o resto está bloqueado (fora da allowlist, sem telefone ou já pago). Confira <strong>nome e telefone</strong> de cada um.</p>
+                  <p className="note">{revisao.enviaraveis} de {revisao.total} serão enviados de verdade — o resto está retido (dry-run/master switch, sem telefone ou já pago). Confira <strong>nome e telefone</strong> de cada um.</p>
                   <div style={{ overflowX: "auto" }}>
                     <table>
                       <thead><tr><th>Cliente</th><th>Telefone</th><th>Imóvel</th><th>Vencimento</th><th style={{ textAlign: "right" }}>Saldo</th><th>Situação</th></tr></thead>
@@ -310,7 +310,7 @@ export default function ConsultasPage() {
               {resInad.erro ? <p style={{ color: "#8d1c0f" }}>{resInad.erro}</p> : (
                 <>
                   <p style={{ margin: 0 }}><strong>Resultado:</strong> {Object.entries(resInad.contagem ?? {}).map(([k, v]) => `${v} ${k}`).join(" · ") || "—"} (de {resInad.total})</p>
-                  <p className="note" style={{ marginBottom: 0 }}>SENT = enviado · DRY_RUN/BLOCKED = trava segurou · PAGA = já quitada · NO_PHONE = sem telefone no Sienge.</p>
+                  <p className="note" style={{ marginBottom: 0 }}>SENT = enviado · DRY_RUN = retido pelas travas-mestras · PAGA = já quitada · NO_PHONE = sem telefone no Sienge.</p>
                 </>
               )}
             </div>

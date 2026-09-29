@@ -38,5 +38,5 @@ export function previewMensagem(etapa: EtapaRegua, d: DadosCobranca): string {
   if (etapa === "D0") {
     return `Olá, ${d.nome}! A parcela do seu imóvel ${d.imovel} vence hoje (${d.vencimento}), no valor de ${d.valor}. Segue o boleto. ${SENHA_BOLETO} Se o pagamento já foi feito, por favor desconsidere. Obrigado! — Casa Forte`;
   }
-  return `Olá, ${d.nome}. A parcela do seu imóvel ${d.imovel}, com vencimento em ${d.vencimento} (${d.valor}), consta em aberto. Segue o boleto atualizado. ${SENHA_BOLETO} Se já efetuou o pagamento, desconsidere; para negociar, fale com a gente. — Casa Forte`;
+  return `Olá, ${d.nome}. A parcela do seu imóvel ${d.imovel}, com vencimento em ${d.vencimento} (${d.valor}), consta em aberto. Pedimos a gentileza de efetuar o pagamento pelo boleto atualizado a seguir. ${SENHA_BOLETO} Se já efetuou o pagamento, pode desconsiderar. Agradecemos a atenção! — Casa Forte`;
 }

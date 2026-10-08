@@ -55,7 +55,8 @@ export function previewConfirmacao(nome: string, itens: ItemConfirmacao[]): stri
     `Oi, ${nome}! 👋`,
     `✅ ${plural ? "Pagamentos recebidos" : "Pagamento recebido"}! Passando pra avisar que ${plural ? "os seus pagamentos caíram" : "o seu pagamento caiu"} certinho por aqui:`,
     blocos.join("\n\n"),
-    `Muito obrigado pela confiança! 💙`,
+    `Muito obrigado pela confiança! 🧡`,
     `🤖 Esta é uma confirmação automática da Casa Forte. Se tiver qualquer dúvida, é só responder esta mensagem que a nossa equipe te ajuda. 😉`,
+    `#aquiécasaforte`,
   ].join("\n\n");
 }

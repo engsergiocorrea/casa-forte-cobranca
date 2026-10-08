@@ -244,3 +244,33 @@ model IntegrationEvent {
   @@unique([source, externalId])
   @@index([status, createdAt])
 }
+
+// Confirmação de pagamento enviada ao cliente (bank-movement → WhatsApp).
+// UMA linha por parcela (billId+installmentId UNIQUE) = o cliente nunca recebe
+// duas confirmações da mesma parcela. A linha é "reivindicada" (SENDING) ANTES
+// do envio; se o processo cair no meio, fica SENDING e NÃO é reenviada.
+// Reenvio automático só para status retentáveis (DRY_RUN, BLOCKED, NO_PHONE,
+// ERROR definitivo). UNCERTAIN (timeout no envio) exige revisão humana.
+model PaymentConfirmation {
+  id            String   @id @default(cuid())
+  billId        Int
+  installmentId Int
+  clientId      Int
+  contrato      String
+  paidDate      DateTime
+  valor         Decimal  @db.Decimal(18, 2)
+  movementIds   String   // ids do bank-movement, separados por vírgula (auditoria)
+  phone         String   @default("")
+  status        String   // SENDING | SENT | DRY_RUN | BLOCKED | NO_PHONE | ERROR | UNCERTAIN
+  motivo        String?
+  messageId     String?
+  detail        String?
+  attempts      Int      @default(0)
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([billId, installmentId])
+  @@index([clientId])
+  @@index([status])
+}

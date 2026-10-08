@@ -119,3 +119,45 @@ export function normalizeReceivableBill(payload: any, wantedInstallmentId: numbe
     partial
   };
 }
+
+// Movimento de caixa/banco vindo do bulk-data GET /bank-movement (schema real
+// capturado em 08/10/2026): { data: [ { bankMovementId, billId, installmentId,
+// bankMovementAmount, bankMovementOriginId ("CR"), bankMovementHistoricId
+// (14 Recebimento | 19 Recebimento acréscimo | 20 Desconto concedido),
+// bankMovementOperationId (1 Recebimento | 2 Pagamento),
+// bankMovementOperationType ("E" entrada | "S" saída), bankMovementDate,
+// billDate, documentIdentificationNumber (nº do contrato), clientId, clientName,
+// bankMovementReconcile ("S"|"N"), companyId, ... } ] }
+export type NormalizedBankMovement = {
+  id: number;
+  billId: number | null;
+  installmentId: number | null;
+  amount: number;
+  origin: string;
+  historicId: number | null;
+  operationId: number | null;
+  operationType: string; // "E" | "S"
+  date: string;          // yyyy-mm-dd (data da movimentação)
+  contrato: string;
+  clientId: number | null;
+  clientName: string;
+};
+
+export function normalizeBankMovements(payload: any): NormalizedBankMovement[] {
+  const rows = Array.isArray(payload) ? payload : (payload?.data ?? payload?.results ?? []);
+  const num = (v: any) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+  return (rows as any[]).map((x) => ({
+    id: Number(x?.bankMovementId),
+    billId: num(x?.billId),
+    installmentId: num(x?.installmentId),
+    amount: Number(x?.bankMovementAmount ?? 0),
+    origin: String(x?.bankMovementOriginId ?? "").trim().toUpperCase(),
+    historicId: num(x?.bankMovementHistoricId),
+    operationId: num(x?.bankMovementOperationId),
+    operationType: String(x?.bankMovementOperationType ?? "").trim().toUpperCase(),
+    date: String(x?.bankMovementDate ?? "").slice(0, 10),
+    contrato: String(x?.documentIdentificationNumber ?? "").trim(),
+    clientId: num(x?.clientId),
+    clientName: String(x?.clientName ?? "").trim(),
+  })).filter((m) => Number.isFinite(m.id));
+}

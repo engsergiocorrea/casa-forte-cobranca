@@ -40,3 +40,12 @@ export function previewMensagem(etapa: EtapaRegua, d: DadosCobranca): string {
   }
   return `Olá, ${d.nome}. A parcela do seu imóvel ${d.imovel}, com vencimento em ${d.vencimento} (${d.valor}), consta em aberto. Pedimos a gentileza de efetuar o pagamento pelo boleto atualizado a seguir. ${SENHA_BOLETO} Se já efetuou o pagamento, pode desconsiderar. Agradecemos a atenção! — Casa Forte`;
 }
+
+// Confirmação de pagamento (texto livre — canal Evolution). Uma mensagem por
+// cliente, listando todas as parcelas confirmadas naquela execução.
+export type ItemConfirmacao = { imovel: string; vencimento: string; valor: string; pagoEm: string };
+export function previewConfirmacao(nome: string, itens: ItemConfirmacao[]): string {
+  const linhas = itens.map((i) => `• ${i.imovel ? `${i.imovel} — ` : ""}parcela com vencimento em ${i.vencimento}: ${i.valor} (pago em ${i.pagoEm})`);
+  const plural = itens.length > 1;
+  return `Olá, ${nome}! Aqui é da Casa Forte. Confirmamos o recebimento ${plural ? "dos seus pagamentos" : "do seu pagamento"}:\n\n${linhas.join("\n")}\n\nMuito obrigado! Qualquer dúvida, é só responder por aqui.`;
+}

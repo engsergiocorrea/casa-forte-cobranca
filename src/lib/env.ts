@@ -40,6 +40,14 @@ const schema = z.object({
   EVOLUTION_API_URL: z.string().default(""),
   EVOLUTION_API_KEY: z.string().default(""),
   EVOLUTION_INSTANCE: z.string().default("casaforte"),
+  // Confirmação de pagamento (bank-movement → WhatsApp). Trava própria, além
+  // das travas-mestras: só envia com PAYMENT_CONFIRMATION_ENABLED=true.
+  // START_DATE = corte: movimentos ANTERIORES nunca são confirmados (backlog).
+  // MIN_HOUR = só roda à tarde (a baixa do retorno bancário é feita até 12h).
+  PAYMENT_CONFIRMATION_ENABLED: bool,
+  PAYMENT_CONFIRMATION_START_DATE: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default("2026-10-07"),
+  PAYMENT_CONFIRMATION_MIN_HOUR: z.coerce.number().int().min(0).max(23).default(13),
+  PAYMENT_CONFIRMATION_LOOKBACK_DAYS: z.coerce.number().int().min(0).max(10).default(3),
   CRON_SECRET: z.string().min(16).default("CHANGE_ME_CHANGE_ME"),
 });
 

@@ -4,12 +4,19 @@ function baseUrl() {
   return `https://api.sienge.com.br/${encodeURIComponent(env().SIENGE_SUBDOMAIN)}/public/api/v1`;
 }
 
+// Bulk-data (movimentos de caixa e bancos, income...) fica em OUTRA base:
+// /public/api/bulk-data/v1 — em /public/api/v1 responde 404 HTML.
+// ATENÇÃO: limite de 20 requisições POR DIA (header x-ratelimit-limit-day).
+function bulkBaseUrl() {
+  return `https://api.sienge.com.br/${encodeURIComponent(env().SIENGE_SUBDOMAIN)}/public/api/bulk-data/v1`;
+}
+
 function authHeader() {
   return `Basic ${Buffer.from(`${env().SIENGE_USERNAME}:${env().SIENGE_PASSWORD}`).toString("base64")}`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`${baseUrl()}${path}`, {
+async function request<T>(path: string, init?: RequestInit, base = baseUrl()): Promise<T> {
+  const r = await fetch(`${base}${path}`, {
     ...init,
     headers: { Accept: "application/json", Authorization: authHeader(), ...(init?.headers || {}) },
     signal: AbortSignal.timeout(15_000),
@@ -66,6 +73,10 @@ export const sienge = {
   listCustomers: (limit = 5, offset = 0) => request<any>(`/customers?limit=${limit}&offset=${offset}`),
   listSalesContracts: (limit = 5, offset = 0) => request<any>(`/sales-contracts?limit=${limit}&offset=${offset}`),
   listUnits: (limit = 5, offset = 0) => request<any>(`/units?limit=${limit}&offset=${offset}`),
+  // Movimentos de caixa e bancos por data de movimentação (selectionType=M).
+  // Bulk-data: 20 req/dia — usar 1x por execução da régua, nunca em loop.
+  listBankMovements: (startDate: string, endDate: string) =>
+    request<any>(`/bank-movement?startDate=${startDate}&endDate=${endDate}&selectionType=M`, { signal: AbortSignal.timeout(60_000) }, bulkBaseUrl()),
 };
 
 // Extrai um "count" de forma defensiva, SEM assumir o schema do Sienge

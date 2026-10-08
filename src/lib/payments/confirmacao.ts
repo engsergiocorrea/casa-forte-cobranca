@@ -113,7 +113,8 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
     // 2) Telefone do cadastro do cliente no Sienge.
     let numero = "";
     try { numero = normalizeCustomerPhones(await sienge.getCustomer(clientId))[0]?.numero ?? ""; } catch { /* sem telefone */ }
-    const nome = (validos[0].clientName || "cliente").split(/\s+/)[0];
+    const primeiro = (validos[0].clientName || "cliente").trim().split(/\s+/)[0];
+    const nome = primeiro.charAt(0).toLocaleUpperCase("pt-BR") + primeiro.slice(1).toLocaleLowerCase("pt-BR"); // Sienge grava em CAIXA ALTA
     const montar = (its: Item[]) => previewConfirmacao(nome, its.map((i): ItemConfirmacao => ({ imovel: i.imovel, vencimento: i.vencimento, valor: fmtBRL(i.valor), pagoEm: brDate(i.paidDate) })));
 
     if (preview) {

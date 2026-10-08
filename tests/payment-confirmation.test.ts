@@ -67,11 +67,12 @@ describe("confirmação de pagamento — seleção", () => {
 describe("confirmação de pagamento — mensagem e datas", () => {
   it("mensagem lista as parcelas e usa singular/plural", () => {
     const um = previewConfirmacao("Fulana", [{ imovel: "Umá — R-01", vencimento: "05/10/2026", valor: "R$ 100,00", pagoEm: "07/10/2026" }]);
-    expect(um).toContain("do seu pagamento");
+    expect(um).toContain("Pagamento recebido");
+    expect(um).toContain("confirmação automática");
     expect(um).toContain("R$ 100,00");
     expect(um).toContain("pago em 07/10/2026");
     const dois = previewConfirmacao("Fulana", [{ imovel: "A", vencimento: "x", valor: "1", pagoEm: "y" }, { imovel: "B", vencimento: "x", valor: "2", pagoEm: "y" }]);
-    expect(dois).toContain("dos seus pagamentos");
+    expect(dois).toContain("Pagamentos recebidos");
   });
   it("helpers de data", () => {
     expect(addDaysKey("2026-10-01", -3)).toBe("2026-09-28");

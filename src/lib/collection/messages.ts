@@ -45,7 +45,17 @@ export function previewMensagem(etapa: EtapaRegua, d: DadosCobranca): string {
 // cliente, listando todas as parcelas confirmadas naquela execução.
 export type ItemConfirmacao = { imovel: string; vencimento: string; valor: string; pagoEm: string };
 export function previewConfirmacao(nome: string, itens: ItemConfirmacao[]): string {
-  const linhas = itens.map((i) => `• ${i.imovel ? `${i.imovel} — ` : ""}parcela com vencimento em ${i.vencimento}: ${i.valor} (pago em ${i.pagoEm})`);
   const plural = itens.length > 1;
-  return `Olá, ${nome}! Aqui é da Casa Forte. Confirmamos o recebimento ${plural ? "dos seus pagamentos" : "do seu pagamento"}:\n\n${linhas.join("\n")}\n\nMuito obrigado! Qualquer dúvida, é só responder por aqui.`;
+  const blocos = itens.map((i) => [
+    i.imovel ? `🏠 ${i.imovel}` : null,
+    `📅 Parcela com vencimento em ${i.vencimento}`,
+    `💰 ${i.valor} — pago em ${i.pagoEm}`,
+  ].filter(Boolean).join("\n"));
+  return [
+    `Oi, ${nome}! 👋`,
+    `✅ ${plural ? "Pagamentos recebidos" : "Pagamento recebido"}! Passando pra avisar que ${plural ? "os seus pagamentos caíram" : "o seu pagamento caiu"} certinho por aqui:`,
+    blocos.join("\n\n"),
+    `Muito obrigado pela confiança! 💙`,
+    `🤖 Esta é uma confirmação automática da Casa Forte. Se tiver qualquer dúvida, é só responder esta mensagem que a nossa equipe te ajuda. 😉`,
+  ].join("\n\n");
 }

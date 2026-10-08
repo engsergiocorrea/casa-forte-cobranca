@@ -11,4 +11,7 @@ async function main() {
   }
 }
 
-main().then(() => process.exit(0), (err) => { console.error(err); process.exit(1); });
+// Sai só depois de o stdout esvaziar: process.exit() imediato perde a última
+// linha do log quando a saída é um pipe (caso do Railway).
+const sair = (code: number) => process.stdout.write("", () => process.exit(code));
+main().then(() => sair(0), (err) => { console.error(err); sair(1); });

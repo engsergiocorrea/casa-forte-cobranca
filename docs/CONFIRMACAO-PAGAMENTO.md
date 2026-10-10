@@ -103,8 +103,8 @@ Baixas sem dinheiro não geram movimento. Regras em `selecao.ts`:
   `updateMany` atômico só a partir de status retentável). Dois runs ao mesmo
   tempo não pegam a mesma parcela.
 - Status que **bloqueiam para sempre**: `SENT`, `SENDING`, `UNCERTAIN`.
-- Status que **tentam de novo** na próxima execução (até 5 tentativas):
-  `DRY_RUN`, `BLOCKED`, `NO_PHONE`, `ERROR`.
+- Status que **tentam de novo** na próxima execução: `DRY_RUN`, `BLOCKED`,
+  `NO_PHONE` (sempre) e `ERROR` (até 5 tentativas).
 - `UNCERTAIN` = falha de conexão/timeout com a Evolution (a mensagem pode ter
   saído). Não reenvia sozinho: conferir no WhatsApp e ajustar o registro à mão.
 - Verificado em 08/10: depois do envio, a prévia mostrou `jaConfirmados: 3`
@@ -235,6 +235,15 @@ Serviço `cron-payment-confirmations`, mesmo repo/branch `main`:
 - Rodar local: `.env` com as credenciais (gitignored). `npm test` (57 testes).
 
 ## Armadilhas já encontradas
+
+- **Telefone estrangeiro:** o cadastro do Sienge traz `phones[].idd` (código do
+  país, ex. `+351`) e `ddd: "null"`. Antes só líamos número brasileiro e o de
+  Portugal virava `NO_PHONE` (caso UMAB-202, 10/10). Corrigido em `ee80e3a`.
+- **Cliente sem telefone no Sienge** = `NO_PHONE`; ao cadastrar, a parcela é
+  tentada de novo, mas só enquanto o pagamento estiver dentro de
+  `PAYMENT_CONFIRMATION_LOOKBACK_DAYS` (usar 10).
+- **Log do Railway:** a linha de resultado é JSON e aparece como campos na
+  tela; ao copiar o texto ela vem em branco. Ler pela tela/print.
 
 - `tsx` compila para CJS no Railway: **sem top-level await** nos scripts
   (corrigido também em `run-collection.ts`, que tinha o mesmo defeito).

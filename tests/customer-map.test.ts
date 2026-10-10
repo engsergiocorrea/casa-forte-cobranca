@@ -78,5 +78,11 @@ describe("extrairPessoasDaProposta", () => {
     expect(ar[0]?.numero).toBe("+5492223421234");
     const arOk = normalizeCustomerPhones({ phones: [{ number: "9 2223 42-1234", idd: "+54" }] });
     expect(arOk[0]?.numero).toBe("+5492223421234");
+    // número estrangeiro dividido entre DDD e Telefone (campo corta em 10 dígitos)
+    const arSplit = normalizeCustomerPhones({ phones: [{ number: "223421234", ddd: "92", idd: "+54" }] });
+    expect(arSplit[0]?.numero).toBe("+5492223421234");
+    // Brasil: DDD separado é usado; DDD repetido no número não duplica
+    expect(normalizeCustomerPhones({ phones: [{ number: "91234-5612", ddd: "82", idd: "+55" }] })[0]?.numero).toBe("+5582912345612");
+    expect(normalizeCustomerPhones({ phones: [{ number: "(82) 91234-5612", ddd: "82", idd: "+55" }] })[0]?.numero).toBe("+5582912345612");
   });
 });

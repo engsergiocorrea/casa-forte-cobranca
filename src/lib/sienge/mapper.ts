@@ -86,11 +86,17 @@ export function normalizeCustomerPhones(customer: any): CustomerPhone[] {
     }
   };
   for (const p of (Array.isArray(list) ? list : [])) {
-    const raw = first(
-      p?.number, p?.phoneNumber, p?.fullNumber, p?.phone,
-      (p?.ddd ?? p?.areaCode) ? `${p?.ddd ?? p?.areaCode}${p?.number ?? p?.phoneNumber ?? ""}` : undefined,
-    );
-    push(raw, first(p?.type, p?.description, p?.kind), first(p?.main, p?.principal, false), first(p?.idd, p?.countryCode, p?.ddi));
+    let raw: any = first(p?.number, p?.phoneNumber, p?.fullNumber, p?.phone);
+    // DDD em campo separado (o Sienge às vezes manda "null" como texto). O campo
+    // Telefone do Sienge corta em 10 dígitos, então número estrangeiro longo
+    // precisa ser dividido entre DDD e Telefone — aqui juntamos de volta.
+    const ddd = String(first(p?.ddd, p?.areaCode) ?? "").replace(/\D/g, "");
+    const idd = first(p?.idd, p?.countryCode, p?.ddi);
+    const pais = String(idd ?? "").replace(/\D/g, "");
+    const num = String(raw ?? "").replace(/\D/g, "");
+    if (ddd && num && !num.startsWith(ddd) && (pais && pais !== "55" ? true : num.length <= 9)) raw = `${ddd}${num}`;
+    if (!raw && ddd) raw = ddd;
+    push(raw, first(p?.type, p?.description, p?.kind), first(p?.main, p?.principal, false), idd);
   }
   // Campos soltos no topo do cadastro (algumas versões do Sienge).
   for (const key of ["cellPhone", "cellphone", "mobilePhone", "mobile", "phone", "telephone"]) {

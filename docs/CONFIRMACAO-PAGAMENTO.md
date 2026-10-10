@@ -237,6 +237,11 @@ Serviço `cron-payment-confirmations`, mesmo repo/branch `main`:
 
 ## Armadilhas já encontradas
 
+- **Campo Telefone do Sienge corta em 10 dígitos.** Número estrangeiro longo
+  precisa ser dividido entre DDD e Telefone (ex.: Argentina +54 → DDD `92`,
+  Telefone `223425562`). `normalizeCustomerPhones` junta DDD + Telefone e, na
+  Argentina, acrescenta o 9 de celular quando falta (`4ece041`, `2028f76`).
+
 - **Baixa com data futura:** o retorno do Bradesco é baixado no dia seguinte,
   mas o movimento pode ficar com a data do CRÉDITO (ex.: Claudelino/Thales,
   baixados em 10/10 com data 13/10). Por isso a busca vai até hoje +10 dias;

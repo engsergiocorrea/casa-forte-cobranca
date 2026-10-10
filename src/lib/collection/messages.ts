@@ -52,11 +52,10 @@ export function previewConfirmacao(nome: string, itens: ItemConfirmacao[]): stri
     `💰 ${i.valor} — pago em ${i.pagoEm}`,
   ].filter(Boolean).join("\n"));
   return [
-    `Oi, ${nome}! 👋`,
-    `✅ ${plural ? "Pagamentos recebidos" : "Pagamento recebido"}! Passando pra avisar que ${plural ? "os seus pagamentos caíram" : "o seu pagamento caiu"} certinho por aqui:`,
+    `✅ ${plural ? "Pagamentos recebidos" : "Pagamento recebido"}`,
+    `${nome}, confirmamos o recebimento ${plural ? "dos seus pagamentos" : "do seu pagamento"}:`,
     blocos.join("\n\n"),
-    `Muito obrigado pela confiança! 🧡`,
-    `🤖 Esta é uma confirmação automática da Casa Forte. Se tiver qualquer dúvida, é só responder esta mensagem que a nossa equipe te ajuda. 😉`,
+    `🤖 Esta é uma confirmação automática da Casa Forte. Em caso de dúvida, basta responder esta mensagem.`,
     `#aquiécasaforte`,
   ].join("\n\n");
 }

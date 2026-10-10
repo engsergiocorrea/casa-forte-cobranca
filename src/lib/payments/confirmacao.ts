@@ -6,7 +6,8 @@ import { normalizeBankMovements, normalizeCustomerPhones, normalizeInstallmentsL
 import { addDaysKey, localDateKey, localHour } from "../collection/date";
 import { previewConfirmacao, type ItemConfirmacao } from "../collection/messages";
 import { canSendTo } from "../safety";
-import { evolutionSendText } from "../whatsapp/evolution";
+import { enviarConfirmacao } from "./envio";
+import { gerarComprovantePdf, nomeArquivoComprovante } from "./comprovante";
 import { agruparPorCliente, selecionarRecebimentos, type Descartado, type Recebimento } from "./selecao";
 
 // Régua de CONFIRMAÇÃO DE PAGAMENTO — roda à tarde (o financeiro dá a baixa do
@@ -142,12 +143,24 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
       continue;
     }
 
-    const r = await evolutionSendText({ to: numero, text: montar(meus) });
-    if (r.success) { await marcar({ status: "SENT", messageId: r.messageId, sentAt: new Date(), motivo: null, detail: null }); s.enviados++; }
+    // Texto sozinho ou, com PAYMENT_CONFIRMATION_PDF_ENABLED, o comprovante em PDF
+    // com o texto como legenda (um PDF por mensagem, todas as parcelas do cliente).
+    const ultimoPago = brDate(meus.map((i) => i.paidDate).sort().at(-1)!);
+    const envio = await enviarConfirmacao({
+      to: numero, texto: montar(meus), pdfEnabled: e.PAYMENT_CONFIRMATION_PDF_ENABLED,
+      fileName: nomeArquivoComprovante(meus[0].contrato, ultimoPago),
+      gerarPdf: () => gerarComprovantePdf(
+        { clienteNome: meus[0].clientName, parcelas: meus.map((i) => ({ imovel: i.imovel, contrato: i.contrato, parcela: i.installmentId, vencimento: i.vencimento, pagoEm: brDate(i.paidDate), valor: i.valor })) },
+        { emitidoEm: new Date(), timeZone: e.TIMEZONE, legalLine: e.COMPANY_LEGAL_LINE },
+      ),
+    });
+    const r = envio.result;
+    const notaPdf = envio.pdfErro ? `PDF_FALHOU (enviado só texto): ${envio.pdfErro}` : null;
+    if (r.success) { await marcar({ status: "SENT", messageId: r.messageId, sentAt: new Date(), motivo: null, detail: notaPdf }); s.enviados++; }
     else {
       // Falha de conexão/timeout: a mensagem PODE ter saído → UNCERTAIN (não reenvia sozinho).
       const incerto = String(r.error ?? "").startsWith("Conexão Evolution");
-      await marcar({ status: incerto ? "UNCERTAIN" : "ERROR", detail: String(r.error ?? "").slice(0, 200) });
+      await marcar({ status: incerto ? "UNCERTAIN" : "ERROR", detail: [notaPdf, String(r.error ?? "")].filter(Boolean).join(" | ").slice(0, 200) });
       if (incerto) s.incertos++; else s.erros++;
     }
     await sleep(1200); // throttle entre envios reais

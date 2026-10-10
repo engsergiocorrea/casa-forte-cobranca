@@ -2,7 +2,9 @@
   "name": "casa-forte-cobranca",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -23,6 +25,7 @@
     "bullmq": "^5.58.0",
     "ioredis": "^5.7.0",
     "next": "^15.5.0",
+    "pdf-lib": "^1.17.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tsx": "^4.20.0",

@@ -1,7 +1,7 @@
 # Confirmação automática de pagamento (Sienge → WhatsApp)
 
 Contexto para qualquer sessão/assistente que for mexer nesta funcionalidade.
-No ar desde **08/10/2026**. Última revisão: 10/10/2026.
+No ar desde **08/10/2026**. Última revisão: 10/10/2026 (comprovante em PDF, ainda desligado).
 
 ## O que faz
 
@@ -36,7 +36,9 @@ Railway cron (21:00 UTC = 18h Maceió, todo dia)
       5. telefone do cadastro do cliente (GET /customers/{id})
       6. "reivindica" a parcela no banco (status SENDING) ANTES de enviar
       7. canSendTo (master switch + dry-run + allowlist/produção)
-      8. Evolution sendText → SENT | ERROR | UNCERTAIN
+      8. enviarConfirmacao (src/lib/payments/envio.ts):
+         PDF desligado → sendText; ligado → sendDocument (PDF + texto como legenda)
+         → SENT | ERROR | UNCERTAIN
 ```
 
 ## Sienge — o que descobrimos (validado com dados reais em 08/10/2026)
@@ -130,6 +132,48 @@ Plural: "✅ Pagamentos recebidos" / "dos seus pagamentos", um bloco por parcela
 O primeiro nome vem do Sienge em CAIXA ALTA e é convertido para "Alysson".
 O nome do imóvel sai como está no Sienge (`UMÁ MILAGRES — R - 05`).
 
+## Comprovante de pagamento em PDF (flag `PAYMENT_CONFIRMATION_PDF_ENABLED`)
+
+O Sienge **não tem API de recibo**, então geramos o nosso. Com a flag em
+`false` (padrão) o comportamento é exatamente o de antes (só texto).
+
+- **Geração:** `src/lib/payments/comprovante.ts` → `gerarComprovantePdf(dados, opções)`,
+  função pura com `pdf-lib` (JS puro, roda no Railway). Fontes padrão
+  Helvetica/Helvetica-Bold (WinAnsi: acentos ok, **sem emoji** — caracteres
+  fora do WinAnsi são removidos em vez de quebrar).
+- **Logo:** `src/lib/payments/logo.ts` (base64 do
+  `casaforte-site/public/images/logosemfundo_casa_forte.png`, reduzido de
+  1441×1010 para 600×420). Arquivo gerado; para trocar o logo, regerar o base64.
+- **Layout (A4 retrato, cores do site):** logo à esquerda; à direita
+  "COMPROVANTE DE PAGAMENTO" + data de emissão; linha vermelha `#E8390E`.
+  Cliente: nome completo do Sienge em nome próprio (`nomeProprio`: de/da/do/
+  dos/das/e minúsculos), **sem CPF e sem telefone**. Texto: "A Casa Forte
+  confirma o recebimento do(s) pagamento(s) abaixo, conforme registrado em seu
+  sistema financeiro." Tabela: Imóvel | Contrato · parcela | Vencimento |
+  Pago em | Valor, com faixa `#F5F3F0` e bordas `#DDD9D3`; linha de TOTAL
+  quando há mais de uma parcela; quebra de página automática.
+  Rodapé: "Documento emitido automaticamente em dd/mm/aaaa às hh:mm
+  (America/Maceio). Não substitui o termo de quitação do contrato." +
+  linha opcional `COMPANY_LEGAL_LINE` (vazia = omite; **não inventar CNPJ/
+  endereço**) + casaforteinc.com.br.
+- **Valores:** os mesmos da mensagem (valor líquido de `selecao.ts`). O único
+  cálculo é a soma do total exibido.
+- **Envio:** um PDF por mensagem (todas as parcelas do cliente) via
+  `evolutionSendDocument` com o base64 em `media`, o texto da mensagem como
+  `caption` e o arquivo `comprovante-pagamento-{contrato}-{dd-mm-aaaa}.pdf`
+  (contrato da 1ª parcela, data do último pagamento).
+- **Falhas:**
+  - erro ao **gerar** o PDF → envia só o texto (`sendText`) e grava no
+    `detail` `PDF_FALHOU (enviado só texto): ...`;
+  - erro ao **enviar** o documento → mesma lógica de sempre (ERROR /
+    UNCERTAIN) e **nunca** cai para `sendText` depois de tentar (risco de
+    duplicar).
+- Travas, claim, status e corte de data não mudaram.
+- Exemplo para revisão: gerar com dados fictícios via `gerarComprovantePdf`
+  (ver `tests/comprovante.test.ts`).
+- Ressalva: legenda de documento no WhatsApp tem limite (~1024 caracteres);
+  a mensagem atual tem ~350 + ~110 por parcela extra.
+
 ## Configuração
 
 ### Variáveis do job (serviço `cron-payment-confirmations`)
@@ -140,6 +184,8 @@ O nome do imóvel sai como está no Sienge (`UMÁ MILAGRES — R - 05`).
 | `PAYMENT_CONFIRMATION_START_DATE` | `2026-10-07` | corte do backlog |
 | `PAYMENT_CONFIRMATION_LOOKBACK_DAYS` | `3` | janela de busca |
 | `PAYMENT_CONFIRMATION_MIN_HOUR` | `12` | recusa rodar antes dessa hora (ignorado com `?force=1`) |
+| `PAYMENT_CONFIRMATION_PDF_ENABLED` | `false` | anexa o comprovante em PDF |
+| `COMPANY_LEGAL_LINE` | (vazio) | linha jurídica opcional no rodapé do PDF |
 
 As demais (banco, Redis, Sienge, Evolution, travas de WhatsApp) são
 **referências** ao serviço web, ex.: `SIENGE_USERNAME=${{casa-forte-cobranca.SIENGE_USERNAME}}`,
@@ -186,7 +232,7 @@ Serviço `cron-payment-confirmations`, mesmo repo/branch `main`:
 - **Evolution cai sozinha** (instância `casaforte`, WhatsApp via QR). Conferir:
   `GET {EVOLUTION_API_URL}/instance/connectionState/casaforte` com header
   `apikey` → `state: "open"`. Reconectar no Evolution Manager.
-- Rodar local: `.env` com as credenciais (gitignored). `npm test` (46 testes).
+- Rodar local: `.env` com as credenciais (gitignored). `npm test` (57 testes).
 
 ## Armadilhas já encontradas
 
@@ -206,10 +252,15 @@ Serviço `cron-payment-confirmations`, mesmo repo/branch `main`:
 - `6e34d4e` / `fadbca1` mensagem informal com emojis, 🧡 e #aquiécasaforte
 - `e690113` doc: cron 1x/dia às 18h
 - `3d27473` mensagem formal, sem "Oi" nem agradecimento
+- (10/10, sem push) comprovante de pagamento em PDF atrás da flag `PAYMENT_CONFIRMATION_PDF_ENABLED`
 
 Primeiro envio real: 08/10/2026, 2 clientes (3 parcelas), sem duplicidade.
 
 ## Pendências
+
+- **Comprovante em PDF:** revisar o exemplo, dar push e ligar
+  `PAYMENT_CONFIRMATION_PDF_ENABLED=true` no cron. Opcional: preencher
+  `COMPANY_LEGAL_LINE` com razão social/CNPJ reais.
 
 - **Trocar o `CRON_SECRET`** do serviço web (ficou exposto em terminal em
   08/10). Gerar com `openssl rand -hex 32`; o cron não usa esse segredo.

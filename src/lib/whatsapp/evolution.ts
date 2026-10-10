@@ -57,6 +57,7 @@ export function evolutionSendText(params: { to: string; text: string }): Promise
   return post("/message/sendText/{instance}", { number, text: params.text });
 }
 
+// `mediaUrl` vai no campo `media` da Evolution: aceita URL pública OU base64 puro.
 export function evolutionSendDocument(params: { to: string; mediaUrl: string; fileName: string; caption?: string }): Promise<EvolutionResult> {
   const number = toEvolutionNumber(params.to);
   if (!number || number.length < 12) return Promise.resolve({ success: false, messageId: null, error: "Telefone inválido." });

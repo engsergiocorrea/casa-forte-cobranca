@@ -23,7 +23,10 @@ import { agruparPorCliente, selecionarRecebimentos, type Descartado, type Recebi
 // (não reenvia sozinho — pode ter chegado).
 
 const RETENTAVEIS = ["DRY_RUN", "BLOCKED", "NO_PHONE", "ERROR"];
+// Teto só para ERROR (falha real de envio). DRY_RUN/BLOCKED/NO_PHONE nunca
+// tentaram enviar: são reavaliados sempre (ex.: telefone cadastrado depois).
 const MAX_TENTATIVAS = 5;
+const esgotado = (x: { status: string; attempts: number }) => x.status === "ERROR" && x.attempts >= MAX_TENTATIVAS;
 
 const fmtBRL = (n: number) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const brDate = (ymd: string) => ymd.split("-").reverse().join("/");
@@ -51,7 +54,7 @@ async function claim(r: Recebimento): Promise<boolean> {
     // Já existe: só reassume se o status anterior for retentável (atômico — dois
     // runs simultâneos não conseguem reivindicar a mesma parcela).
     const u = await db.paymentConfirmation.updateMany({
-      where: { billId: r.billId, installmentId: r.installmentId, status: { in: RETENTAVEIS }, attempts: { lt: MAX_TENTATIVAS } },
+      where: { billId: r.billId, installmentId: r.installmentId, OR: [{ status: { in: RETENTAVEIS.filter((st) => st !== "ERROR") } }, { status: "ERROR", attempts: { lt: MAX_TENTATIVAS } }] },
       data: { ...base, status: "SENDING", attempts: { increment: 1 } },
     });
     return u.count === 1;
@@ -82,7 +85,7 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
   const existentes = recebimentos.length
     ? await db.paymentConfirmation.findMany({ where: { OR: recebimentos.map((r) => ({ billId: r.billId, installmentId: r.installmentId })) }, select: { billId: true, installmentId: true, status: true, attempts: true } })
     : [];
-  const bloqueia = new Set(existentes.filter((x) => !RETENTAVEIS.includes(x.status) || x.attempts >= MAX_TENTATIVAS).map((x) => `${x.billId}/${x.installmentId}`));
+  const bloqueia = new Set(existentes.filter((x) => !RETENTAVEIS.includes(x.status) || esgotado(x)).map((x) => `${x.billId}/${x.installmentId}`));
   const pendentes = recebimentos.filter((r) => !bloqueia.has(`${r.billId}/${r.installmentId}`));
   s.jaConfirmados = recebimentos.length - pendentes.length;
 

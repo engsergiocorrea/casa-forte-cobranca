@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mapPessoaToSienge, extrairPessoasDaProposta, toIsoDate, splitPhoneBR } from "../src/lib/sienge/customer-map";
+import { normalizeCustomerPhones } from "../src/lib/sienge/mapper";
 
 describe("datas e telefone", () => {
   it("toIsoDate aceita dd/mm/aaaa e aaaa-mm-dd", () => {
@@ -66,5 +67,11 @@ describe("extrairPessoasDaProposta", () => {
     expect(cpfs).toEqual(["1", "3", "4"]); // Ana (1) não duplica; Beto é cônjuge embutido
     const ana = pessoas.find((x) => x.pessoa.cpf === "1")!;
     expect(ana.pessoa.conjuge?.nome).toBe("Beto");
+  });
+  it("telefone estrangeiro usa o código do país (idd) do cadastro", () => {
+    const pt = normalizeCustomerPhones({ phones: [{ type: "Celular", number: "912345689", main: true, idd: "+351", ddd: "null", whatsapp: true }] });
+    expect(pt[0]?.numero).toBe("+351912345689");
+    const br = normalizeCustomerPhones({ phones: [{ type: "Celular", number: "(11)91234-5612", main: true, idd: "+55", ddd: "null" }] });
+    expect(br[0]?.numero).toBe("+5511912345612");
   });
 });

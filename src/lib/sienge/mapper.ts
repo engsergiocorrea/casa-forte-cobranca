@@ -67,9 +67,15 @@ export function normalizeCustomerPhones(customer: any): CustomerPhone[] {
   const root = Array.isArray(customer) ? customer[0] : customer;
   const list = arr(first(root?.phones, root?.phoneNumbers, root?.contacts, root?.telephones));
   const out: CustomerPhone[] = [];
-  const push = (raw: any, tipo: any, principal: any) => {
-    const e164 = toBrazilE164(String(raw ?? ""));
-    if (e164 && e164.replace(/\D/g, "").length >= 12 && !out.some(o => o.numero === e164)) {
+  const push = (raw: any, tipo: any, principal: any, idd?: any) => {
+    // `idd` = código do país no cadastro (ex.: "+55", "+351"). Fora do Brasil o
+    // número vem sem DDD ("ddd": "null") e precisa do código do país na frente.
+    const pais = String(idd ?? "").replace(/\D/g, "");
+    const digitos = String(raw ?? "").replace(/\D/g, "");
+    let e164 = "", minimo = 12;
+    if (pais && pais !== "55" && digitos) { e164 = `+${digitos.startsWith(pais) && digitos.length > pais.length + 6 ? digitos : pais + digitos}`; minimo = 10; }
+    else e164 = toBrazilE164(String(raw ?? ""));
+    if (e164 && e164.replace(/\D/g, "").length >= minimo && !out.some(o => o.numero === e164)) {
       out.push({ numero: e164, tipo: tipo != null ? String(tipo) : null, principal: !!principal });
     }
   };
@@ -78,7 +84,7 @@ export function normalizeCustomerPhones(customer: any): CustomerPhone[] {
       p?.number, p?.phoneNumber, p?.fullNumber, p?.phone,
       (p?.ddd ?? p?.areaCode) ? `${p?.ddd ?? p?.areaCode}${p?.number ?? p?.phoneNumber ?? ""}` : undefined,
     );
-    push(raw, first(p?.type, p?.description, p?.kind), first(p?.main, p?.principal, false));
+    push(raw, first(p?.type, p?.description, p?.kind), first(p?.main, p?.principal, false), first(p?.idd, p?.countryCode, p?.ddi));
   }
   // Campos soltos no topo do cadastro (algumas versões do Sienge).
   for (const key of ["cellPhone", "cellphone", "mobilePhone", "mobile", "phone", "telephone"]) {

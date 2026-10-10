@@ -71,7 +71,13 @@ export function normalizeCustomerPhones(customer: any): CustomerPhone[] {
     // `idd` = código do país no cadastro (ex.: "+55", "+351"). Fora do Brasil o
     // número vem sem DDD ("ddd": "null") e precisa do código do país na frente.
     const pais = String(idd ?? "").replace(/\D/g, "");
-    const digitos = String(raw ?? "").replace(/\D/g, "");
+    let digitos = String(raw ?? "").replace(/\D/g, "");
+    // Argentina: o WhatsApp só reconhece celular como +54 9 <área><número>; o
+    // cadastro costuma vir sem o 9 (e às vezes com o 0 do código de área).
+    if (pais === "54" && digitos && !digitos.startsWith("54")) {
+      digitos = digitos.replace(/^0+/, "");
+      if (!digitos.startsWith("9")) digitos = `9${digitos}`;
+    }
     let e164 = "", minimo = 12;
     if (pais && pais !== "55" && digitos) { e164 = `+${digitos.startsWith(pais) && digitos.length > pais.length + 6 ? digitos : pais + digitos}`; minimo = 10; }
     else e164 = toBrazilE164(String(raw ?? ""));

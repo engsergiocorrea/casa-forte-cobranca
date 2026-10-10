@@ -73,5 +73,10 @@ describe("extrairPessoasDaProposta", () => {
     expect(pt[0]?.numero).toBe("+351912345689");
     const br = normalizeCustomerPhones({ phones: [{ type: "Celular", number: "(11)91234-5612", main: true, idd: "+55", ddd: "null" }] });
     expect(br[0]?.numero).toBe("+5511912345612");
+    // Argentina: celular precisa do 9 depois do 54 (cadastro vem sem)
+    const ar = normalizeCustomerPhones({ phones: [{ type: "Celular", number: "2223421234", idd: "+54", ddd: null, whatsapp: true }] });
+    expect(ar[0]?.numero).toBe("+5492223421234");
+    const arOk = normalizeCustomerPhones({ phones: [{ number: "9 2223 42-1234", idd: "+54" }] });
+    expect(arOk[0]?.numero).toBe("+5492223421234");
   });
 });

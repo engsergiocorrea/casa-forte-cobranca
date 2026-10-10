@@ -71,3 +71,6 @@ Sienge webhook -> IntegrationEvent -> BullMQ -> sync local -> scheduler da régu
 - Não criar cálculo financeiro paralelo.
 - Não ativar D+ cobrança para toda base.
 - Não criar portal do cliente antes de estabilizar cobrança WhatsApp.
+
+## Confirmação de pagamento (no ar)
+Antes de mexer em confirmação de pagamento, bank-movement ou no cron das 18h, leia `docs/CONFIRMACAO-PAGAMENTO.md`.

@@ -52,7 +52,10 @@ const schema = z.object({
   PAYMENT_CONFIRMATION_PDF_ENABLED: bool,
   // Linha jurídica opcional no rodapé do comprovante (razão social/CNPJ). Vazia = omite.
   COMPANY_LEGAL_LINE: z.string().default(""),
-  PAYMENT_CONFIRMATION_LOOKBACK_DAYS: z.coerce.number().int().min(0).max(10).default(3),
+  PAYMENT_CONFIRMATION_LOOKBACK_DAYS: z.coerce.number().int().min(0).max(10).default(10),
+  // Dias À FRENTE: a baixa do retorno Bradesco pode vir com a data do crédito
+  // (ex.: pago na sexta, crédito na segunda) e há pagamentos antecipados.
+  PAYMENT_CONFIRMATION_LOOKAHEAD_DAYS: z.coerce.number().int().min(0).max(15).default(10),
   CRON_SECRET: z.string().min(16).default("CHANGE_ME_CHANGE_ME"),
 });
 

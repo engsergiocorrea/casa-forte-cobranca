@@ -3,12 +3,12 @@ import { db } from "../db";
 import { env } from "../env";
 import { sienge } from "../sienge/client";
 import { normalizeBankMovements, normalizeCustomerPhones, normalizeInstallmentsList, type NormalizedInstallmentRow } from "../sienge/mapper";
-import { addDaysKey, localDateKey, localHour } from "../collection/date";
+import { localDateKey, localHour } from "../collection/date";
 import { previewConfirmacao, type ItemConfirmacao } from "../collection/messages";
 import { canSendTo } from "../safety";
 import { enviarConfirmacao } from "./envio";
 import { gerarComprovantePdf, nomeArquivoComprovante } from "./comprovante";
-import { agruparPorCliente, selecionarRecebimentos, type Descartado, type Recebimento } from "./selecao";
+import { agruparPorCliente, janelaBusca, selecionarRecebimentos, type Descartado, type Recebimento } from "./selecao";
 
 // Régua de CONFIRMAÇÃO DE PAGAMENTO — roda à tarde (o financeiro dá a baixa do
 // retorno bancário no Sienge até ~12h). Fluxo:
@@ -71,12 +71,11 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
   if (!preview && !opts.force && localHour(now, e.TIMEZONE) < e.PAYMENT_CONFIRMATION_MIN_HOUR) return { ...s, skipped: "ANTES_DO_HORARIO" };
 
   const hoje = localDateKey(now, e.TIMEZONE);
-  const lookback = addDaysKey(hoje, -e.PAYMENT_CONFIRMATION_LOOKBACK_DAYS);
-  const inicio = lookback > e.PAYMENT_CONFIRMATION_START_DATE ? lookback : e.PAYMENT_CONFIRMATION_START_DATE;
-  if (inicio > hoje) return { ...s, skipped: "ANTES_DA_DATA_DE_CORTE" };
-  s.janela = { inicio, fim: hoje };
+  const janela = janelaBusca(hoje, e.PAYMENT_CONFIRMATION_START_DATE, e.PAYMENT_CONFIRMATION_LOOKBACK_DAYS, e.PAYMENT_CONFIRMATION_LOOKAHEAD_DAYS);
+  if (!janela) return { ...s, skipped: "ANTES_DA_DATA_DE_CORTE" };
+  s.janela = janela;
 
-  const movs = normalizeBankMovements(await sienge.listBankMovements(inicio, hoje));
+  const movs = normalizeBankMovements(await sienge.listBankMovements(janela.inicio, janela.fim));
   s.movimentos = movs.length;
   const { recebimentos, descartados } = selecionarRecebimentos(movs, e.PAYMENT_CONFIRMATION_START_DATE);
   s.recebimentos = recebimentos.length;

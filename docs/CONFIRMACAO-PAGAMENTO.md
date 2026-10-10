@@ -29,7 +29,7 @@ no fim da tarde.
 Railway cron (21:00 UTC = 18h Maceió, todo dia)
   → npm run cron:payment-confirmations  (src/scripts/run-payment-confirmations.ts)
   → runConfirmacoesPagamento()          (src/lib/payments/confirmacao.ts)
-      1. GET bulk-data /bank-movement (janela: últimos 3 dias, nunca antes do corte)
+      1. GET bulk-data /bank-movement (janela: hoje −10 a hoje +10 dias, nunca antes do corte)
       2. selecionarRecebimentos()        (src/lib/payments/selecao.ts — pura, testada)
       3. tira parcelas já SENT/SENDING/UNCERTAIN
       4. revalida no Sienge: parcela com balanceDue = 0 e título do mesmo cliente
@@ -182,7 +182,8 @@ O Sienge **não tem API de recibo**, então geramos o nosso. Com a flag em
 |---|---|---|
 | `PAYMENT_CONFIRMATION_ENABLED` | `true` | trava própria (false = não roda) |
 | `PAYMENT_CONFIRMATION_START_DATE` | `2026-10-07` | corte do backlog |
-| `PAYMENT_CONFIRMATION_LOOKBACK_DAYS` | `3` | janela de busca |
+| `PAYMENT_CONFIRMATION_LOOKBACK_DAYS` | `10` | dias para trás na busca |
+| `PAYMENT_CONFIRMATION_LOOKAHEAD_DAYS` | `10` | dias à frente (baixa com data do crédito / pagamento antecipado) |
 | `PAYMENT_CONFIRMATION_MIN_HOUR` | `12` | recusa rodar antes dessa hora (ignorado com `?force=1`) |
 | `PAYMENT_CONFIRMATION_PDF_ENABLED` | `false` | anexa o comprovante em PDF |
 | `COMPANY_LEGAL_LINE` | (vazio) | linha jurídica opcional no rodapé do PDF |
@@ -235,6 +236,11 @@ Serviço `cron-payment-confirmations`, mesmo repo/branch `main`:
 - Rodar local: `.env` com as credenciais (gitignored). `npm test` (57 testes).
 
 ## Armadilhas já encontradas
+
+- **Baixa com data futura:** o retorno do Bradesco é baixado no dia seguinte,
+  mas o movimento pode ficar com a data do CRÉDITO (ex.: Claudelino/Thales,
+  baixados em 10/10 com data 13/10). Por isso a busca vai até hoje +10 dias;
+  a mensagem mostra "pago em" com essa data.
 
 - **Telefone estrangeiro:** o cadastro do Sienge traz `phones[].idd` (código do
   país, ex. `+351`) e `ddd: "null"`. Antes só líamos número brasileiro e o de

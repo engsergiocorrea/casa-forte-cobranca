@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeBankMovements } from "../src/lib/sienge/mapper";
-import { agruparPorCliente, selecionarRecebimentos } from "../src/lib/payments/selecao";
+import { agruparPorCliente, janelaBusca, selecionarRecebimentos } from "../src/lib/payments/selecao";
 import { previewConfirmacao } from "../src/lib/collection/messages";
 import { addDaysKey, localHour } from "../src/lib/collection/date";
 
@@ -77,5 +77,21 @@ describe("confirmação de pagamento — mensagem e datas", () => {
   it("helpers de data", () => {
     expect(addDaysKey("2026-10-01", -3)).toBe("2026-09-28");
     expect(localHour(new Date("2026-10-08T17:30:00Z"), "America/Maceio")).toBe(14);
+  });
+});
+
+describe("confirmação de pagamento — janela de busca", () => {
+  it("vai 10 dias para trás e 10 à frente", () => {
+    expect(janelaBusca("2026-10-20", "2026-10-07", 10, 10)).toEqual({ inicio: "2026-10-10", fim: "2026-10-30" });
+  });
+  it("nunca começa antes do corte", () => {
+    expect(janelaBusca("2026-10-10", "2026-10-07", 10, 10)).toEqual({ inicio: "2026-10-07", fim: "2026-10-20" });
+  });
+  it("pega baixa datada no futuro (crédito na segunda)", () => {
+    const j = janelaBusca("2026-10-10", "2026-10-07", 10, 10)!;
+    expect("2026-10-13" >= j.inicio && "2026-10-13" <= j.fim).toBe(true);
+  });
+  it("sem dias à frente = comportamento antigo (até hoje)", () => {
+    expect(janelaBusca("2026-10-10", "2026-10-07", 3, 0)).toEqual({ inicio: "2026-10-07", fim: "2026-10-10" });
   });
 });

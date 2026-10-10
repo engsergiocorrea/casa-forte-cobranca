@@ -1,4 +1,5 @@
 import type { NormalizedBankMovement } from "../sienge/mapper";
+import { addDaysKey } from "../collection/date";
 
 // Seleção PURA (sem I/O) dos recebimentos que merecem confirmação ao cliente,
 // a partir dos movimentos de caixa/banco do Sienge.
@@ -80,4 +81,15 @@ export function agruparPorCliente(rs: Recebimento[]): Map<number, Recebimento[]>
   const m = new Map<number, Recebimento[]>();
   for (const r of rs) m.set(r.clientId, [...(m.get(r.clientId) ?? []), r]);
   return m;
+}
+
+// Janela da consulta ao bank-movement (datas yyyy-mm-dd). Olha para TRÁS
+// (baixa lançada dias depois do pagamento) e para a FRENTE (baixa do retorno
+// Bradesco lançada com a data do crédito, ex.: pago na sexta, crédito na
+// segunda; ou pagamento antecipado). Nunca começa antes da data de corte.
+export function janelaBusca(hoje: string, corte: string, diasAtras: number, diasFrente: number): { inicio: string; fim: string } | null {
+  const atras = addDaysKey(hoje, -diasAtras);
+  const inicio = atras > corte ? atras : corte;
+  const fim = addDaysKey(hoje, diasFrente);
+  return inicio > fim ? null : { inicio, fim };
 }

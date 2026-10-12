@@ -224,13 +224,11 @@ export async function gerarComprovantePdf(d: DadosRecibo, o: OpcoesComprovante):
     const declaracao = `Recebemos de ${d.clienteNome} a importância supra de ${fmtBRL(p.liquido)} (${valorPorExtenso(p.liquido)}), referente a sua liquidação (da parcela acima citada).`;
     for (const l of quebrar(declaracao, regular, 9.5, DIREITA - M)) { texto(page, l, M, y, 9.5, regular); y -= 13.5; }
 
-    // Local e data (data do pagamento), linha de assinatura e empresa.
+    // Local e data (data do pagamento). Sem campo de assinatura: o recibo é
+    // emitido eletronicamente (não há assinatura digital ICP-Brasil aplicada).
     y -= 26;
     centro(page, `${d.empresa.cidade ?? "Maceió"}, ${dataPorExtenso(p.pagoEm)}`, y, 10, regular);
-    y -= 48;
-    page.drawLine({ start: { x: A4[0] / 2 - 150, y }, end: { x: A4[0] / 2 + 150, y }, thickness: 0.6, color: TEXTO });
-    centro(page, d.empresa.nome, y - 13, 9.5, regular);
-    aDireita(page, "Via Cliente", DIREITA, y - 45, 9.5, regular);
+    aDireita(page, "Via Cliente", DIREITA, y - 40, 9.5, regular);
 
     // Rodapé: endereço | emissão; aviso de emissão automática.
     const fy = M + 46;

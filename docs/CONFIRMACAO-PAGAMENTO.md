@@ -151,10 +151,11 @@ parcela). Com a flag em `false` (padrão) a confirmação sai só em texto.
   Unidades, Vencimento, Valor (bruto), Desconto, Líquido, Seguro e, se houver,
   Juros / Multa; "Recebemos de NOME a importância supra de R$ X (valor por
   extenso), referente a sua liquidação (da parcela acima citada)."; cidade e
-  data do pagamento por extenso; linha + nome da empresa; rodapé com endereço,
+  data do pagamento por extenso (sem campo de assinatura); rodapé com endereço,
   data de emissão e aviso de emissão automática (+ `COMPANY_LEGAL_LINE`).
 - **Sem CPF e sem telefone** (o recibo do Sienge traz CPF; o nosso vai por
-  WhatsApp). Sem assinatura digital.
+  WhatsApp). Sem campo de assinatura (removido em 12/10). Assinatura digital
+  ICP-Brasil exigiria o certificado e-CNPJ A1 da empresa — não implementado.
 - **CNPJ/endereço:** tabela `EMPRESAS` em comprovante.ts por `companyId` do
   Sienge (hoje só a 2 — Casa Forte Ltda., dados do recibo do Sienge).
   Empresa fora da tabela sai só com o nome.

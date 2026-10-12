@@ -132,47 +132,41 @@ Plural: "✅ Pagamentos recebidos" / "dos seus pagamentos", um bloco por parcela
 O primeiro nome vem do Sienge em CAIXA ALTA e é convertido para "Alysson".
 O nome do imóvel sai como está no Sienge (`UMÁ MILAGRES — R - 05`).
 
-## Comprovante de pagamento em PDF (flag `PAYMENT_CONFIRMATION_PDF_ENABLED`)
+## Recibo de pagamento em PDF (flag `PAYMENT_CONFIRMATION_PDF_ENABLED`)
 
-O Sienge **não tem API de recibo**, então geramos o nosso. Com a flag em
-`false` (padrão) o comportamento é exatamente o de antes (só texto).
+O Sienge **não tem API de recibo**, então geramos o nosso, **no mesmo modelo
+do recibo do Sienge** (pedido de 12/10/2026, após cliente estranhar o nº da
+parcela). Com a flag em `false` (padrão) a confirmação sai só em texto.
 
-- **Geração:** `src/lib/payments/comprovante.ts` → `gerarComprovantePdf(dados, opções)`,
-  função pura com `pdf-lib` (JS puro, roda no Railway). Fontes padrão
-  Helvetica/Helvetica-Bold (WinAnsi: acentos ok, **sem emoji** — caracteres
-  fora do WinAnsi são removidos em vez de quebrar).
-- **Logo:** `src/lib/payments/logo.ts` (base64 do
-  `casaforte-site/public/images/logosemfundo_casa_forte.png`, reduzido de
-  1441×1010 para 600×420). Arquivo gerado; para trocar o logo, regerar o base64.
-- **Layout (A4 retrato, cores do site):** logo à esquerda; à direita
-  "COMPROVANTE DE PAGAMENTO" + data de emissão; linha vermelha `#E8390E`.
-  Cliente: nome completo do Sienge em nome próprio (`nomeProprio`: de/da/do/
-  dos/das/e minúsculos), **sem CPF e sem telefone**. Texto: "A Casa Forte
-  confirma o recebimento do(s) pagamento(s) abaixo, conforme registrado em seu
-  sistema financeiro." Tabela: Imóvel | Contrato · parcela | Vencimento |
-  Pago em | Valor, com faixa `#F5F3F0` e bordas `#DDD9D3`; linha de TOTAL
-  quando há mais de uma parcela; quebra de página automática.
-  Rodapé: "Documento emitido automaticamente em dd/mm/aaaa às hh:mm
-  (America/Maceio). Não substitui o termo de quitação do contrato." +
-  linha opcional `COMPANY_LEGAL_LINE` (vazia = omite; **não inventar CNPJ/
-  endereço**) + casaforteinc.com.br.
-- **Valores:** os mesmos da mensagem (valor líquido de `selecao.ts`). O único
-  cálculo é a soma do total exibido.
-- **Envio:** um PDF por mensagem (todas as parcelas do cliente) via
-  `evolutionSendDocument` com o base64 em `media`, o texto da mensagem como
-  `caption` e o arquivo `comprovante-pagamento-{contrato}-{dd-mm-aaaa}.pdf`
-  (contrato da 1ª parcela, data do último pagamento).
-- **Falhas:**
-  - erro ao **gerar** o PDF → envia só o texto (`sendText`) e grava no
-    `detail` `PDF_FALHOU (enviado só texto): ...`;
-  - erro ao **enviar** o documento → mesma lógica de sempre (ERROR /
-    UNCERTAIN) e **nunca** cai para `sendText` depois de tentar (risco de
-    duplicar).
+- **Dados:** 1 chamada bulk-data `GET /income/by-bills?billsIds=..` por
+  execução (só quando algum PDF vai ser gerado; conta no limite de 20/dia).
+  `normalizeIncomeInstallments` (mapper.ts) → `montarParcelaRecibo`
+  (comprovante.ts) escolhe a baixa cujo `bankMovements[].id` é o movimento
+  confirmado.
+- **Nº da parcela:** `installmentNumber` do Sienge ("4/60"), **não** o
+  `installmentId` (que é outro número — era a reclamação do cliente).
+- **Layout (A4, uma página por parcela, "Via Cliente"):** Empresa + CNPJ e
+  logo; "RECIBO"; Imóvel, Documento (`CT / UMAR-211`), Título / Parcela
+  (`34 - 4/60`), Tipo Parc (`PM`), Centro Custo (`2 - UMÁ MILAGRES`),
+  Unidades, Vencimento, Valor (bruto), Desconto, Líquido, Seguro e, se houver,
+  Juros / Multa; "Recebemos de NOME a importância supra de R$ X (valor por
+  extenso), referente a sua liquidação (da parcela acima citada)."; cidade e
+  data do pagamento por extenso; linha + nome da empresa; rodapé com endereço,
+  data de emissão e aviso de emissão automática (+ `COMPANY_LEGAL_LINE`).
+- **Sem CPF e sem telefone** (o recibo do Sienge traz CPF; o nosso vai por
+  WhatsApp). Sem assinatura digital.
+- **CNPJ/endereço:** tabela `EMPRESAS` em comprovante.ts por `companyId` do
+  Sienge (hoje só a 2 — Casa Forte Ltda., dados do recibo do Sienge).
+  Empresa fora da tabela sai só com o nome.
+- **Valores:** os da baixa no Sienge (bruto, desconto, seguro, juros+multa,
+  líquido). Nenhum cálculo nosso.
+- **Envio:** um PDF por mensagem (uma página por parcela do cliente) via
+  `evolutionSendDocument` com base64 em `media`, o texto como `caption`,
+  arquivo `comprovante-pagamento-{contrato}-{dd-mm-aaaa}.pdf`.
+- **Falhas:** erro ao gerar (inclusive dado ausente no income/by-bills) →
+  envia só o texto e grava `PDF_FALHOU (enviado só texto): ...` no `detail`;
+  erro ao ENVIAR o documento → ERROR/UNCERTAIN, **nunca** cai para texto.
 - Travas, claim, status e corte de data não mudaram.
-- Exemplo para revisão: gerar com dados fictícios via `gerarComprovantePdf`
-  (ver `tests/comprovante.test.ts`).
-- Ressalva: legenda de documento no WhatsApp tem limite (~1024 caracteres);
-  a mensagem atual tem ~350 + ~110 por parcela extra.
 
 ## Configuração
 
@@ -272,7 +266,8 @@ Serviço `cron-payment-confirmations`, mesmo repo/branch `main`:
 - `6e34d4e` / `fadbca1` mensagem informal com emojis, 🧡 e #aquiécasaforte
 - `e690113` doc: cron 1x/dia às 18h
 - `3d27473` mensagem formal, sem "Oi" nem agradecimento
-- (10/10, sem push) comprovante de pagamento em PDF atrás da flag `PAYMENT_CONFIRMATION_PDF_ENABLED`
+- `dce356d` comprovante em PDF atrás da flag `PAYMENT_CONFIRMATION_PDF_ENABLED`
+- (12/10) recibo no modelo do Sienge (nº da parcela "4/60", valores da baixa, extenso)
 
 Primeiro envio real: 08/10/2026, 2 clientes (3 parcelas), sem duplicidade.
 

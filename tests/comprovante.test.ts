@@ -1,39 +1,89 @@
 import { describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { gerarComprovantePdf, nomeArquivoComprovante, nomeProprio } from "../src/lib/payments/comprovante";
+import { dataPorExtenso, empresaDe, gerarComprovantePdf, montarParcelaRecibo, nomeArquivoComprovante, nomeProprio, valorPorExtenso } from "../src/lib/payments/comprovante";
 import { enviarConfirmacao } from "../src/lib/payments/envio";
+import { normalizeIncomeInstallments } from "../src/lib/sienge/mapper";
 
-const parcela = (o: Partial<Record<string, any>> = {}) => ({
-  imovel: "UMÁ MILAGRES — R - 05", contrato: "UMAR-05", parcela: 12,
-  vencimento: "10/10/2026", pagoEm: "08/10/2026", valor: 2892.72, ...o,
+// Parcela no formato real do bulk-data /income/by-bills (12/10/2026), dados fictícios.
+const incomeRow = (o: Record<string, any> = {}) => ({
+  companyId: 2, companyName: "CONSTRUCOES E EMPREENDIMENTOS CASA FORTE LTDA", clientId: 37, clientName: "FULANO DE TAL",
+  billId: 34, installmentId: 6, documentIdentificationId: "CT  ", documentNumber: "UMAR-211", dueDate: "2026-10-12",
+  mainUnit: "R - 211", installmentNumber: "4/60", paymentTerm: { id: "PM", descrition: "Parcelas Mensais" },
+  receiptsCategories: [{ costCenterId: 2, costCenterName: "UMÁ MILAGRES" }],
+  receipts: [{ operationTypeId: 2, operationTypeName: "Recebimento", grossAmount: 4084.72, discountAmount: 0, insuranceAmount: 0,
+    interestAmount: 0, fineAmount: 0, netAmount: 4084.72, paymentDate: "2026-10-13", bankMovements: [{ id: 470 }] }],
+  ...o,
 });
-const opts = { emitidoEm: new Date("2026-10-08T21:00:00Z"), timeZone: "America/Maceio" };
+const parcela = (o: Record<string, any> = {}) => ({
+  titulo: 34, parcela: "4/60", tipoParc: "PM", unidade: "R - 211", documento: "CT / UMAR-211", centroCusto: "2 - UMÁ MILAGRES",
+  vencimento: "12/10/2026", valor: 4084.72, seguro: 0, desconto: 0, acrescimos: 0, liquido: 4084.72, pagoEm: "2026-10-13", ...o,
+});
+const empresa = empresaDe(2, "CONSTRUCOES E EMPREENDIMENTOS CASA FORTE LTDA");
+const opts = { emitidoEm: new Date("2026-10-13T21:00:00Z"), timeZone: "America/Maceio" };
 const isPdf = (b: Uint8Array) => Buffer.from(b.slice(0, 5)).toString("latin1") === "%PDF-";
 
-describe("comprovante — PDF", () => {
-  it("gera PDF válido para 1 parcela", async () => {
-    const b = await gerarComprovantePdf({ clienteNome: "FULANA DE TAL", parcelas: [parcela()] }, opts);
-    expect(isPdf(b)).toBe(true);
-    const doc = await PDFDocument.load(b);
-    expect(doc.getPageCount()).toBe(1);
-    expect(doc.getTitle()).toBe("Comprovante de pagamento");
+describe("recibo — dados do Sienge", () => {
+  it("monta a parcela com o nº do plano (4/60), não o installmentId", () => {
+    const [inc] = normalizeIncomeInstallments({ data: [incomeRow()] });
+    const p = montarParcelaRecibo(inc, [470]);
+    expect(p).toMatchObject({ titulo: 34, parcela: "4/60", tipoParc: "PM", unidade: "R - 211", documento: "CT / UMAR-211",
+      centroCusto: "2 - UMÁ MILAGRES", vencimento: "12/10/2026", valor: 4084.72, liquido: 4084.72, pagoEm: "2026-10-13" });
   });
-  it("gera PDF válido para 2 parcelas (com total)", async () => {
-    const b = await gerarComprovantePdf({ clienteNome: "FULANO", parcelas: [parcela(), parcela({ parcela: 13, valor: 10413.82 })] }, { ...opts, legalLine: "Casa Forte — linha jurídica de teste" });
-    expect(isPdf(b)).toBe(true);
-    expect((await PDFDocument.load(b)).getPageCount()).toBe(1);
+  it("escolhe a baixa que gerou o movimento confirmado", () => {
+    const [inc] = normalizeIncomeInstallments({ data: [incomeRow({ receipts: [
+      { operationTypeName: "Recebimento", grossAmount: 100, netAmount: 100, paymentDate: "2026-10-01", bankMovements: [{ id: 1 }] },
+      { operationTypeName: "Recebimento", grossAmount: 200, netAmount: 210, interestAmount: 6, fineAmount: 4, paymentDate: "2026-10-13", bankMovements: [{ id: 2 }] },
+    ] })] });
+    expect(montarParcelaRecibo(inc, [1]).liquido).toBe(100);
+    const p = montarParcelaRecibo(inc, [2]);
+    expect(p.liquido).toBe(210);
+    expect(p.acrescimos).toBe(10);
+  });
+  it("sem baixa ou sem nº da parcela → erro (cai para só texto)", () => {
+    const [semBaixa] = normalizeIncomeInstallments({ data: [incomeRow({ receipts: [] })] });
+    expect(() => montarParcelaRecibo(semBaixa, [470])).toThrow();
+    const [semNumero] = normalizeIncomeInstallments({ data: [incomeRow({ installmentNumber: "" })] });
+    expect(() => montarParcelaRecibo(semNumero, [470])).toThrow();
+  });
+  it("empresa conhecida traz CNPJ e endereço; desconhecida só o nome", () => {
+    expect(empresa.cnpj).toBe("37.301.810/0001-98");
+    expect(empresaDe(99, "OUTRA SPE")).toEqual({ nome: "OUTRA SPE" });
+  });
+});
+
+describe("recibo — extenso e data", () => {
+  it("valor por extenso igual ao Sienge", () => {
+    expect(valorPorExtenso(4200.54)).toBe("quatro mil e duzentos reais e cinquenta e quatro centavos");
+    expect(valorPorExtenso(4084.72)).toBe("quatro mil e oitenta e quatro reais e setenta e dois centavos");
+    expect(valorPorExtenso(2892.72)).toBe("dois mil oitocentos e noventa e dois reais e setenta e dois centavos");
+    expect(valorPorExtenso(1)).toBe("um real");
+    expect(valorPorExtenso(0.01)).toBe("um centavo");
+    expect(valorPorExtenso(100)).toBe("cem reais");
+    expect(valorPorExtenso(1000000)).toBe("um milhão de reais");
+    expect(valorPorExtenso(79380)).toBe("setenta e nove mil trezentos e oitenta reais");
+    expect(valorPorExtenso(10413.82)).toBe("dez mil quatrocentos e treze reais e oitenta e dois centavos");
+  });
+  it("data por extenso", () => {
+    expect(dataPorExtenso("2026-09-09")).toBe("9 de Setembro de 2026");
+    expect(dataPorExtenso("2026-10-13")).toBe("13 de Outubro de 2026");
+  });
+});
+
+describe("recibo — PDF", () => {
+  it("gera PDF válido, 1 página por parcela", async () => {
+    const um = await gerarComprovantePdf({ empresa, clienteNome: "FULANO DE TAL", parcelas: [parcela()] }, opts);
+    expect(isPdf(um)).toBe(true);
+    const doc = await PDFDocument.load(um);
+    expect(doc.getPageCount()).toBe(1);
+    expect(doc.getTitle()).toBe("Recibo de pagamento");
+    const dois = await gerarComprovantePdf({ empresa, clienteNome: "FULANO", parcelas: [parcela(), parcela({ parcela: "5/60", acrescimos: 12.3 })] }, { ...opts, legalLine: "linha de teste" });
+    expect((await PDFDocument.load(dois)).getPageCount()).toBe(2);
   });
   it("não quebra com emoji ou caractere fora do WinAnsi", async () => {
-    const b = await gerarComprovantePdf({ clienteNome: "ANA 😀", parcelas: [parcela({ imovel: "Casa ✅ Santorini" })] }, opts);
-    expect(isPdf(b)).toBe(true);
+    expect(isPdf(await gerarComprovantePdf({ empresa: { nome: "X ✅" }, clienteNome: "ANA 😀", parcelas: [parcela({ unidade: "Casa ✅" })] }, opts))).toBe(true);
   });
-  it("muitas parcelas quebram página sem erro", async () => {
-    const ps = Array.from({ length: 40 }, (_, i) => parcela({ parcela: i + 1 }));
-    const doc = await PDFDocument.load(await gerarComprovantePdf({ clienteNome: "X", parcelas: ps }, opts));
-    expect(doc.getPageCount()).toBeGreaterThan(1);
-  });
-  it("recusa comprovante sem parcelas", async () => {
-    await expect(gerarComprovantePdf({ clienteNome: "X", parcelas: [] }, opts)).rejects.toThrow();
+  it("recusa recibo sem parcelas", async () => {
+    await expect(gerarComprovantePdf({ empresa, clienteNome: "X", parcelas: [] }, opts)).rejects.toThrow();
   });
 });
 

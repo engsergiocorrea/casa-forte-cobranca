@@ -2,12 +2,12 @@ import { Prisma } from "@prisma/client";
 import { db } from "../db";
 import { env } from "../env";
 import { sienge } from "../sienge/client";
-import { normalizeBankMovements, normalizeCustomerPhones, normalizeInstallmentsList, type NormalizedInstallmentRow } from "../sienge/mapper";
+import { normalizeBankMovements, normalizeCustomerPhones, normalizeIncomeInstallments, normalizeInstallmentsList, type NormalizedIncomeInstallment, type NormalizedInstallmentRow } from "../sienge/mapper";
 import { localDateKey, localHour } from "../collection/date";
 import { previewConfirmacao, type ItemConfirmacao } from "../collection/messages";
 import { canSendTo } from "../safety";
 import { enviarConfirmacao } from "./envio";
-import { gerarComprovantePdf, nomeArquivoComprovante } from "./comprovante";
+import { empresaDe, gerarComprovantePdf, montarParcelaRecibo, nomeArquivoComprovante } from "./comprovante";
 import { agruparPorCliente, janelaBusca, selecionarRecebimentos, type Descartado, type Recebimento } from "./selecao";
 
 // Régua de CONFIRMAÇÃO DE PAGAMENTO — roda à tarde (o financeiro dá a baixa do
@@ -88,6 +88,13 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
   const pendentes = recebimentos.filter((r) => !bloqueia.has(`${r.billId}/${r.installmentId}`));
   s.jaConfirmados = recebimentos.length - pendentes.length;
 
+  // Dados do recibo (nº "4/60", tipo, unidade, valores da baixa) — 1 chamada
+  // bulk-data /income/by-bills por execução, só quando um PDF vai ser gerado.
+  // Se falhar, a geração do PDF falha e a confirmação sai só em texto.
+  let reciboDados: Promise<Map<string, NormalizedIncomeInstallment>> | null = null;
+  const dadosRecibo = () => (reciboDados ??= sienge.listIncomeByBills([...new Set(pendentes.map((r) => r.billId))])
+    .then((raw) => new Map(normalizeIncomeInstallments(raw).map((x) => [`${x.billId}/${x.installmentId}`, x]))));
+
   const parcelasCache = new Map<number, NormalizedInstallmentRow[]>();
   const tituloCache = new Map<number, any>();
   const previews: any[] = [];
@@ -151,10 +158,18 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
     const envio = await enviarConfirmacao({
       to: numero, texto: montar(meus), pdfEnabled: e.PAYMENT_CONFIRMATION_PDF_ENABLED,
       fileName: nomeArquivoComprovante(meus[0].contrato, ultimoPago),
-      gerarPdf: () => gerarComprovantePdf(
-        { clienteNome: meus[0].clientName, parcelas: meus.map((i) => ({ imovel: i.imovel, contrato: i.contrato, parcela: i.installmentId, vencimento: i.vencimento, pagoEm: brDate(i.paidDate), valor: i.valor })) },
-        { emitidoEm: new Date(), timeZone: e.TIMEZONE, legalLine: e.COMPANY_LEGAL_LINE },
-      ),
+      gerarPdf: async () => {
+        const mapa = await dadosRecibo();
+        const incs = meus.map((i) => {
+          const inc = mapa.get(`${i.billId}/${i.installmentId}`);
+          if (!inc) throw new Error(`Parcela ${i.billId}/${i.installmentId} ausente no income/by-bills`);
+          return { inc, parcela: montarParcelaRecibo(inc, i.movementIds) };
+        });
+        return gerarComprovantePdf(
+          { empresa: empresaDe(incs[0].inc.companyId, incs[0].inc.companyName), clienteNome: incs[0].inc.clientName || meus[0].clientName, parcelas: incs.map((x) => x.parcela) },
+          { emitidoEm: new Date(), timeZone: e.TIMEZONE, legalLine: e.COMPANY_LEGAL_LINE },
+        );
+      },
     });
     const r = envio.result;
     const notaPdf = envio.pdfErro ? `PDF_FALHOU (enviado só texto): ${envio.pdfErro}` : null;

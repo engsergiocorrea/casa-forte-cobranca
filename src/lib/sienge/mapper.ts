@@ -179,3 +179,49 @@ export function normalizeBankMovements(payload: any): NormalizedBankMovement[] {
     clientName: String(x?.clientName ?? "").trim(),
   })).filter((m) => Number.isFinite(m.id));
 }
+
+// Parcela a receber vinda do bulk-data GET /income/by-bills (schema real
+// capturado em 12/10/2026). É de onde saem os campos do recibo do Sienge:
+// installmentNumber ("4/60"), paymentTerm.id ("PM"), mainUnit ("R - 211"),
+// documento (CT / UMAR-211), centro de custo e os valores de cada baixa.
+export type NormalizedIncomeReceipt = {
+  operacao: string;
+  bruto: number; desconto: number; seguro: number; juros: number; multa: number; liquido: number;
+  pagoEm: string; // yyyy-mm-dd
+  bankMovementIds: number[];
+};
+export type NormalizedIncomeInstallment = {
+  billId: number; installmentId: number;
+  parcela: string; tipoParc: string;
+  unidade: string; documento: string; centroCusto: string;
+  vencimento: string; // yyyy-mm-dd
+  companyId: number | null; companyName: string; clientName: string;
+  baixas: NormalizedIncomeReceipt[];
+};
+
+export function normalizeIncomeInstallments(payload: any): NormalizedIncomeInstallment[] {
+  const rows = Array.isArray(payload) ? payload : (payload?.data ?? payload?.results ?? []);
+  const n = (v: any) => Number(v ?? 0) || 0;
+  return (rows as any[]).map((x) => {
+    const cat = x?.receiptsCategories?.[0] ?? x?.receipts?.[0]?.bankMovements?.[0]?.financialCategories?.[0];
+    return {
+      billId: Number(x?.billId), installmentId: Number(x?.installmentId),
+      parcela: String(x?.installmentNumber ?? "").trim(),
+      tipoParc: String(x?.paymentTerm?.id ?? "").trim(),
+      unidade: String(x?.mainUnit ?? "").trim(),
+      documento: [String(x?.documentIdentificationId ?? "").trim(), String(x?.documentNumber ?? "").trim()].filter(Boolean).join(" / "),
+      centroCusto: cat ? [cat.costCenterId, cat.costCenterName].filter((v: any) => v != null && v !== "").join(" - ") : "",
+      vencimento: String(x?.dueDate ?? "").slice(0, 10),
+      companyId: x?.companyId != null ? Number(x.companyId) : null,
+      companyName: String(x?.companyName ?? "").trim(),
+      clientName: String(x?.clientName ?? "").trim(),
+      baixas: (Array.isArray(x?.receipts) ? x.receipts : []).map((r: any) => ({
+        operacao: String(r?.operationTypeName ?? ""),
+        bruto: n(r?.grossAmount), desconto: n(r?.discountAmount), seguro: n(r?.insuranceAmount),
+        juros: n(r?.interestAmount), multa: n(r?.fineAmount), liquido: n(r?.netAmount),
+        pagoEm: String(r?.paymentDate ?? "").slice(0, 10),
+        bankMovementIds: (Array.isArray(r?.bankMovements) ? r.bankMovements : []).map((b: any) => Number(b?.id)).filter(Number.isFinite),
+      })),
+    };
+  }).filter((r) => Number.isFinite(r.billId) && Number.isFinite(r.installmentId));
+}

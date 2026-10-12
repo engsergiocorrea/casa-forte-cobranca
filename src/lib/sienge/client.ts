@@ -77,6 +77,11 @@ export const sienge = {
   // Bulk-data: 20 req/dia — usar 1x por execução da régua, nunca em loop.
   listBankMovements: (startDate: string, endDate: string) =>
     request<any>(`/bank-movement?startDate=${startDate}&endDate=${endDate}&selectionType=M`, { signal: AbortSignal.timeout(60_000) }, bulkBaseUrl()),
+  // Parcelas a receber + baixas dos títulos informados (bulk-data, conta no
+  // limite de 20/dia). Fonte dos dados do recibo: nº da parcela "4/60", tipo,
+  // unidade, centro de custo e valores da baixa.
+  listIncomeByBills: (billIds: number[]) =>
+    request<any>(`/income/by-bills?${billIds.map((b) => `billsIds=${b}`).join("&")}`, undefined, bulkBaseUrl()),
 };
 
 // Extrai um "count" de forma defensiva, SEM assumir o schema do Sienge

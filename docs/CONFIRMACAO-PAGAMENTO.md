@@ -26,7 +26,7 @@ no fim da tarde.
 ## Fluxo
 
 ```
-Railway cron (21:00 UTC = 18h Maceió, todo dia)
+Railway cron (15:00 e 21:00 UTC = 12h e 18h Maceió, todo dia)
   → npm run cron:payment-confirmations  (src/scripts/run-payment-confirmations.ts)
   → runConfirmacoesPagamento()          (src/lib/payments/confirmacao.ts)
       1. GET bulk-data /bank-movement (janela: hoje −10 a hoje +10 dias, nunca antes do corte)
@@ -98,6 +98,13 @@ Baixas sem dinheiro não geram movimento. Regras em `selecao.ts`:
   `customerId`.
 
 ## Anti-duplicidade
+
+- **Duas execuções por dia (12h e 18h, desde 18/10/2026):** o mesmo pagamento
+  nunca é confirmado duas vezes — o que saiu ao meio-dia está `SENT` e a
+  execução das 18h pula. Decisão do usuário: **uma mensagem por pagamento**;
+  se duas parcelas do mesmo cliente forem baixadas uma antes e outra depois
+  do meio-dia, ele recebe duas mensagens (uma por parcela), nunca repetidas.
+  O Railway não inicia uma execução do cron enquanto a anterior roda.
 
 - Antes de enviar, a parcela é gravada como `SENDING` (insert; se já existir,
   `updateMany` atômico só a partir de status retentável). Dois runs ao mesmo
@@ -179,7 +186,7 @@ parcela). Com a flag em `false` (padrão) a confirmação sai só em texto.
 | `PAYMENT_CONFIRMATION_START_DATE` | `2026-10-07` | corte do backlog |
 | `PAYMENT_CONFIRMATION_LOOKBACK_DAYS` | `10` | dias para trás na busca |
 | `PAYMENT_CONFIRMATION_LOOKAHEAD_DAYS` | `10` | dias à frente (baixa com data do crédito / pagamento antecipado) |
-| `PAYMENT_CONFIRMATION_MIN_HOUR` | `12` | recusa rodar antes dessa hora (ignorado com `?force=1`) |
+| `PAYMENT_CONFIRMATION_MIN_HOUR` | `11` | recusa rodar antes dessa hora (ignorado com `?force=1`) |
 | `PAYMENT_CONFIRMATION_PDF_ENABLED` | `false` | anexa o comprovante em PDF |
 | `COMPANY_LEGAL_LINE` | (vazio) | linha jurídica opcional no rodapé do PDF |
 
@@ -204,7 +211,7 @@ Serviço `cron-payment-confirmations`, mesmo repo/branch `main`:
 - Build: `npx prisma generate` (não usar `npm run build`: o `next build`
   quebra sem as variáveis e o cron não precisa do site).
 - Start: `npm run cron:payment-confirmations`
-- Cron Schedule: `0 21 * * *` (18h Maceió, todos os dias)
+- Cron Schedule: `0 15,21 * * *` (12h e 18h Maceió, todos os dias)
 - Restart Policy: **Never**
 - Sem domínio público. Entre execuções aparece como parado: é normal.
 - Migração da tabela roda no start do serviço web (`prisma migrate deploy`).

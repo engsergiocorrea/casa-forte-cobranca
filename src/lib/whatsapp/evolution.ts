@@ -41,8 +41,11 @@ async function post(endpointPath: string, body: Record<string, unknown>): Promis
     let resp: any = null;
     try { resp = await r.json(); } catch { /* sem corpo JSON */ }
     if (!r.ok) {
-      const msg = (resp && typeof resp === "object" && "message" in resp ? String((resp as any).message) : null) ?? `Evolution status ${r.status}`;
-      return { success: false, messageId: null, error: String(msg).slice(0, 200) };
+      // Evolution v2 manda o motivo em response.message (ex.: [{ exists: false, ... }]
+      // = número sem WhatsApp). Guarda o status HTTP + o motivo, sem a apikey.
+      const motivo = resp?.response?.message ?? resp?.message ?? resp?.error ?? null;
+      const msg = `Evolution status ${r.status}${motivo != null ? `: ${typeof motivo === "string" ? motivo : JSON.stringify(motivo)}` : ""}`;
+      return { success: false, messageId: null, error: msg.slice(0, 300) };
     }
     const messageId = resp?.key?.id ?? resp?.messageId ?? null;
     return { success: true, messageId: typeof messageId === "string" ? messageId : null };

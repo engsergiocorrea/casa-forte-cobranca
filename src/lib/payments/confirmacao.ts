@@ -177,7 +177,7 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
     else {
       // Falha de conexão/timeout: a mensagem PODE ter saído → UNCERTAIN (não reenvia sozinho).
       const incerto = String(r.error ?? "").startsWith("Conexão Evolution");
-      await marcar({ status: incerto ? "UNCERTAIN" : "ERROR", detail: [notaPdf, String(r.error ?? "")].filter(Boolean).join(" | ").slice(0, 200) });
+      await marcar({ status: incerto ? "UNCERTAIN" : "ERROR", detail: [notaPdf, String(r.error ?? "")].filter(Boolean).join(" | ").slice(0, 400) });
       if (incerto) s.incertos++; else s.erros++;
     }
     await sleep(1200); // throttle entre envios reais

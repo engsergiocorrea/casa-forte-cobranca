@@ -244,6 +244,13 @@ Serviço `cron-payment-confirmations`, mesmo repo/branch `main`:
 
 ## Armadilhas já encontradas
 
+- **Número estrangeiro curto virava brasileiro** (corrigido em `8791b1b`): a
+  conversão para a Evolution tratava qualquer número de 10–11 dígitos como
+  DDD+celular do Brasil e punha 55 na frente (+351 com 8 dígitos → 55 35…).
+  Agora E.164 com `+` é enviado como está. Caso UMAL-207 (Pedro Maria).
+- **Há dois clientes "Pedro"**: UMAB-202 (cliente 36) e UMAL-207 (cliente 42).
+  Confirmar contrato/nome completo antes de investigar.
+
 - **Campo Telefone do Sienge corta em 10 dígitos.** Número estrangeiro longo
   precisa ser dividido entre DDD e Telefone (ex.: Argentina +54 → DDD `92`,
   Telefone `223425562`). `normalizeCustomerPhones` junta DDD + Telefone e, na

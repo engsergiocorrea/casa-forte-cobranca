@@ -7,6 +7,7 @@ import { localDateKey, localHour } from "../collection/date";
 import { previewConfirmacao, type ItemConfirmacao } from "../collection/messages";
 import { canSendTo } from "../safety";
 import { enviarConfirmacao } from "./envio";
+import { evolutionNumberExists } from "../whatsapp/evolution";
 import { empresaDe, gerarComprovantePdf, montarParcelaRecibo, nomeArquivoComprovante } from "./comprovante";
 import { agruparPorCliente, janelaBusca, selecionarRecebimentos, type Descartado, type Recebimento } from "./selecao";
 
@@ -22,7 +23,7 @@ import { agruparPorCliente, janelaBusca, selecionarRecebimentos, type Descartado
 // cada parcela é confirmada no máximo uma vez; timeout no envio vira UNCERTAIN
 // (não reenvia sozinho — pode ter chegado).
 
-const RETENTAVEIS = ["DRY_RUN", "BLOCKED", "NO_PHONE", "ERROR"];
+const RETENTAVEIS = ["DRY_RUN", "BLOCKED", "NO_PHONE", "NO_WHATSAPP", "ERROR"];
 // Teto só para ERROR (falha real de envio). DRY_RUN/BLOCKED/NO_PHONE nunca
 // tentaram enviar: são reavaliados sempre (ex.: telefone cadastrado depois).
 const MAX_TENTATIVAS = 5;
@@ -150,6 +151,13 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
       await marcar({ status: dry ? "DRY_RUN" : "BLOCKED", motivo: gate.reason, detail: montar(meus) });
       if (dry) s.dryRun++; else s.bloqueados++;
       continue;
+    }
+
+    // Número sem WhatsApp (ex.: dígito faltando no cadastro do Sienge): não envia
+    // e não gasta tentativa — volta a tentar quando o cadastro for corrigido.
+    if (await evolutionNumberExists(numero) === false) {
+      await marcar({ status: "NO_WHATSAPP", motivo: "NUMERO_SEM_WHATSAPP", detail: `Número ${numero.replace(/\d(?=\d{3})/g, "•")} não tem WhatsApp — conferir cadastro no Sienge` });
+      s.semTelefone++; continue;
     }
 
     // Texto sozinho ou, com PAYMENT_CONFIRMATION_PDF_ENABLED, o comprovante em PDF

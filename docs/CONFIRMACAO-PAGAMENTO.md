@@ -111,7 +111,12 @@ Baixas sem dinheiro não geram movimento. Regras em `selecao.ts`:
   tempo não pegam a mesma parcela.
 - Status que **bloqueiam para sempre**: `SENT`, `SENDING`, `UNCERTAIN`.
 - Status que **tentam de novo** na próxima execução: `DRY_RUN`, `BLOCKED`,
-  `NO_PHONE` (sempre) e `ERROR` (até 5 tentativas).
+  `NO_PHONE`, `NO_WHATSAPP` (sempre) e `ERROR` (até 5 tentativas).
+- Antes de enviar, o número é checado na Evolution (`/chat/whatsappNumbers`).
+  `exists:false` → `NO_WHATSAPP` (ex.: celular de Portugal com 8 dígitos no
+  Sienge — UMAL-207, 19/10). Se a checagem falhar, segue o envio normal.
+- Diagnóstico só leitura: `GET /api/internal/payment-confirmations?billId=N`
+  (Bearer CRON_SECRET) mostra status, motivo, erro e tentativas.
 - `UNCERTAIN` = falha de conexão/timeout com a Evolution (a mensagem pode ter
   saído). Não reenvia sozinho: conferir no WhatsApp e ajustar o registro à mão.
 - Verificado em 08/10: depois do envio, a prévia mostrou `jaConfirmados: 3`

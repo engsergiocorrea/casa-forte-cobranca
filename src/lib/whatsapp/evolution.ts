@@ -54,6 +54,24 @@ async function post(endpointPath: string, body: Record<string, unknown>): Promis
   }
 }
 
+// O número tem WhatsApp? POST /chat/whatsappNumbers/{instance} → [{ exists, jid }].
+// null = não deu para saber (falha de rede/HTTP) — quem chama segue o fluxo normal.
+export async function evolutionNumberExists(to: string): Promise<boolean | null> {
+  const cfg = config();
+  const number = toEvolutionNumber(to);
+  if (!cfg || !number) return null;
+  try {
+    const r = await fetch(`${cfg.apiUrl}/chat/whatsappNumbers/${cfg.instance}`, {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: cfg.apiKey },
+      body: JSON.stringify({ numbers: [number] }), signal: AbortSignal.timeout(15_000),
+    });
+    if (!r.ok) return null;
+    const j: any = await r.json();
+    const it = Array.isArray(j) ? j[0] : null;
+    return typeof it?.exists === "boolean" ? it.exists : null;
+  } catch { return null; }
+}
+
 export function evolutionSendText(params: { to: string; text: string }): Promise<EvolutionResult> {
   const number = toEvolutionNumber(params.to);
   if (!number || number.length < 12) return Promise.resolve({ success: false, messageId: null, error: "Telefone inválido." });

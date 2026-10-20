@@ -23,8 +23,14 @@ export function isEvolutionConfigured() {
 }
 
 // Evolution espera o número só com dígitos e DDI (ex.: 5582999999999).
-function toEvolutionNumber(to: string) {
-  return toBrazilE164(to).replace(/\D/g, "");
+// Número no formato da Evolution: só dígitos, com DDI. Se já vem em E.164
+// ("+351…", como sai de normalizeCustomerPhones), é usado como está — antes,
+// número estrangeiro curto (ex.: +351 com 8 dígitos = 11 dígitos) caía na
+// regra brasileira de "10–11 dígitos = DDD+número" e ganhava um 55 na frente.
+export function toEvolutionNumber(to: string) {
+  const s = String(to ?? "").trim();
+  if (s.startsWith("+")) return s.replace(/\D/g, "");
+  return toBrazilE164(s).replace(/\D/g, "");
 }
 
 async function post(endpointPath: string, body: Record<string, unknown>): Promise<EvolutionResult> {

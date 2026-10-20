@@ -9,3 +9,16 @@ describe("WhatsApp safety gate", () => {
   it("staging bloqueia número fora da allowlist", () => expect(canSendTo("+5582888888888", { ...base, outboundEnabled: true, dryRun: false }).allowed).toBe(false));
   it("production continua fechado sem liberação explícita", () => expect(canSendTo("+5582888888888", { ...base, appMode: "production", outboundEnabled: true, dryRun: false }).allowed).toBe(false));
 });
+
+import { toEvolutionNumber } from "../src/lib/whatsapp/evolution";
+describe("número para a Evolution", () => {
+  it("E.164 estrangeiro curto não vira número brasileiro", () => {
+    expect(toEvolutionNumber("+35191234567")).toBe("35191234567");
+    expect(toEvolutionNumber("+351912345678")).toBe("351912345678");
+  });
+  it("número brasileiro sem DDI continua ganhando o 55", () => {
+    expect(toEvolutionNumber("(82) 99999-9999")).toBe("5582999999999");
+    expect(toEvolutionNumber("+5582999999999")).toBe("5582999999999");
+  });
+});
+

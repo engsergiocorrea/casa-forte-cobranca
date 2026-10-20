@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   });
   return NextResponse.json(rows.map((r) => ({
     billId: r.billId, installmentId: r.installmentId, contrato: r.contrato, status: r.status,
-    motivo: r.motivo, detail: r.detail, attempts: r.attempts, phone: r.phone.replace(/\d(?=\d{3})/g, "•"),
+    motivo: r.motivo, detail: r.detail?.replace(/\d{4,}(?=\d{3})/g, (m) => "•".repeat(m.length)) ?? null, attempts: r.attempts, phone: r.phone.replace(/\d(?=\d{3})/g, "•"),
     paidDate: r.paidDate.toISOString().slice(0, 10), valor: Number(r.valor), sentAt: r.sentAt, updatedAt: r.updatedAt,
   })));
 }

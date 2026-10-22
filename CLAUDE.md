@@ -74,3 +74,6 @@ Sienge webhook -> IntegrationEvent -> BullMQ -> sync local -> scheduler da régu
 
 ## Confirmação de pagamento (no ar)
 Antes de mexer em confirmação de pagamento, bank-movement ou no cron das 18h, leia `docs/CONFIRMACAO-PAGAMENTO.md`.
+
+## Arquitetura v2 (comunicação financeira)
+Antes de mexer em boleto, lembrete, cobrança, relatórios, painel ou integração com o Casa Forte Brain, leia `docs/ARQUITETURA-COMUNICACAO.md`.

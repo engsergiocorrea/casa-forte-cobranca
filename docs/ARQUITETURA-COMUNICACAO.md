@@ -227,6 +227,17 @@ e-CNPJ A1 em `CONFIRMACAO-PAGAMENTO.md`).
 
 ## 6. Fases
 
+**Status (21/10/2026): Fase 1 implementada** — `src/lib/canal/*` (interface +
+Evolution + catálogo de modelos), `src/lib/regua/planejar.ts` (puro, testado),
+`src/lib/regua/executar.ts`, tabela `Comunicacao`, rota `/api/internal/regua`,
+cron `npm run cron:regua`. Validado com dados reais (21/10: 51 parcelas na janela,
+plano de 21 boletos + 7 cobranças = 21 mensagens). A confirmação de pagamento
+continua em `PaymentConfirmation` e migra para `Comunicacao` na Fase 2.
+Ainda sem anexo PDF do boleto: o texto leva link + linha digitável.
+**Atenção na 1ª ativação real:** todo boleto com vencimento nos próximos 10 dias
+sai no primeiro dia (comportamento "assim que gerado").
+
+
 | Fase | Entrega | Liga em produção? |
 |---|---|---|
 | **1. Núcleo** | `Comunicacao` + migração, interface de canal (Evolution), planejador com boleto D-10/lembrete D0/cobrança D+1/7/15, travas por tipo, tudo em **dry-run** | só dry-run |

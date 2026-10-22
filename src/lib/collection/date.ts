@@ -17,3 +17,7 @@ export function localHour(date: Date, timeZone = "America/Maceio") {
 export function addDaysKey(key: string, days: number) {
   return new Date((keyToEpochDay(key) + days) * 86400000).toISOString().slice(0, 10);
 }
+// Dias de `de` até `ate` (chaves yyyy-mm-dd). Positivo = `ate` no futuro.
+export function diffDias(de: string, ate: string) {
+  return Math.round(keyToEpochDay(ate) - keyToEpochDay(de));
+}

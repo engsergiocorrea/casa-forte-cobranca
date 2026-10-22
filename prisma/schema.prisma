@@ -274,3 +274,41 @@ model PaymentConfirmation {
   @@index([clientId])
   @@index([status])
 }
+
+// Registro central (outbox) de tudo que o sistema manda — régua v2.
+// UMA linha por comunicação (dedupeKey UNIQUE), reivindicada (ENVIANDO) ANTES
+// do envio: nunca sai duas vezes. Ver docs/ARQUITETURA-COMUNICACAO.md §4.2.
+// Fase 1: boleto (D-10), lembrete (D0) e cobrança (D+1/7/15). A confirmação
+// de pagamento migra para cá numa fase seguinte (hoje em PaymentConfirmation).
+model Comunicacao {
+  id                String    @id @default(cuid())
+  tipo              String    // BOLETO | LEMBRETE_D0 | COBRANCA | ...
+  etapa             String?   // D-10 | D0 | D+1 | D+7 | D+15
+  dedupeKey         String    @unique
+  billId            Int?
+  installmentId     Int?
+  dueDate           DateTime?
+  customerId        Int?      // id do cliente no Sienge
+  clienteNome       String?
+  contrato          String?
+  parcela           String?   // "4/60"
+  valor             Decimal?  @db.Decimal(18, 2)
+  destino           String    @default("")
+  status            String    // PLANEJADA | ENVIANDO | ENVIADA | ENTREGUE | LIDA | SEM_TELEFONE | SEM_WHATSAPP | BLOQUEADA | DRY_RUN | ERRO | INCERTA | CANCELADA | IGNORADA
+  canal             String?
+  providerMessageId String?
+  tentativas        Int       @default(0)
+  motivo            String?
+  detalhe           String?
+  conteudo          String?   // snapshot do texto que saiu (ou sairia, em dry-run)
+  solicitadoPor     String    @default("cron") // cron | painel:<usuario> | brain:<ator>
+  criadaEm          DateTime  @default(now())
+  enviadaEm         DateTime?
+  entregueEm        DateTime?
+  atualizadaEm      DateTime  @updatedAt
+
+  @@index([status])
+  @@index([billId, installmentId])
+  @@index([customerId])
+  @@index([criadaEm])
+}

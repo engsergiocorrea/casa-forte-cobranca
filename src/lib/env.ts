@@ -56,6 +56,17 @@ const schema = z.object({
   // Dias À FRENTE: a baixa do retorno Bradesco pode vir com a data do crédito
   // (ex.: pago na sexta, crédito na segunda) e há pagamentos antecipados.
   PAYMENT_CONFIRMATION_LOOKAHEAD_DAYS: z.coerce.number().int().min(0).max(15).default(10),
+  // Régua v2 (boleto D-10, lembrete D0, cobrança D+1/7/15) — docs/ARQUITETURA-COMUNICACAO.md.
+  // Uma trava por tipo (padrão desligado) + modo de teste próprio da régua:
+  // com REGUA_DRY_RUN=true (padrão) registra o que SAIRIA e não envia nada,
+  // independentemente do WHATSAPP_DRY_RUN (que a confirmação já usa em produção).
+  BOLETO_ENABLED: bool,
+  LEMBRETE_ENABLED: bool,
+  COBRANCA_ENABLED: bool,
+  REGUA_DRY_RUN: z.string().default("true").transform((v) => v.toLowerCase() !== "false"),
+  BOLETO_DIAS_ANTES: z.coerce.number().int().min(1).max(20).default(10),
+  COBRANCA_ETAPAS: z.string().default("1,7,15").transform((v) => v.split(",").map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0)),
+  COBRANCA_TOLERANCIA_DIAS: z.coerce.number().int().min(0).max(5).default(3),
   CRON_SECRET: z.string().min(16).default("CHANGE_ME_CHANGE_ME"),
 });
 

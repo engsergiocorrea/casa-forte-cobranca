@@ -80,6 +80,10 @@ export const sienge = {
   // Parcelas a receber + baixas dos títulos informados (bulk-data, conta no
   // limite de 20/dia). Fonte dos dados do recibo: nº da parcela "4/60", tipo,
   // unidade, centro de custo e valores da baixa.
+  // Parcelas (abertas e pagas) com VENCIMENTO no período — base da régua de
+  // boleto/lembrete/cobrança. 1 chamada bulk-data por execução.
+  listIncomeByDueDate: (startDate: string, endDate: string) =>
+    request<any>(`/income?startDate=${startDate}&endDate=${endDate}&selectionType=D`, undefined, bulkBaseUrl()),
   listIncomeByBills: (billIds: number[]) =>
     request<any>(`/income/by-bills?${billIds.map((b) => `billsIds=${b}`).join("&")}`, undefined, bulkBaseUrl()),
 };

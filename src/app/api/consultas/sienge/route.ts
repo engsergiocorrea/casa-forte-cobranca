@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { usuariosConfigurados } from "@/lib/painel/usuarios";
 import { env } from "@/lib/env";
 import { sienge, siengePing, extractCount } from "@/lib/sienge/client";
 import { normalizeReceivableBill, normalizeInstallmentsList, normalizePaymentSlip, normalizeCustomerPhones } from "@/lib/sienge/mapper";
@@ -34,9 +35,9 @@ function guard(): NextResponse | null {
   if (env().APP_MODE !== "staging") {
     return NextResponse.json({ ok: false, error: "only_staging" }, { status: 403 });
   }
-  if (!process.env.DASHBOARD_BASIC_USER || !process.env.DASHBOARD_BASIC_PASS) {
+  if (!usuariosConfigurados().size) {
     return NextResponse.json(
-      { ok: false, error: "painel_sem_senha", detail: "Defina DASHBOARD_BASIC_USER e DASHBOARD_BASIC_PASS nas Variables do Railway para liberar as consultas." },
+      { ok: false, error: "painel_sem_senha", detail: "Defina DASHBOARD_USERS (ou DASHBOARD_BASIC_USER/PASS) nas Variables do Railway para liberar as consultas." },
       { status: 403 },
     );
   }

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { usuarioDoHeader, usuariosConfigurados } from "./usuarios";
 
-// O painel usa o Basic Auth do site (middleware). Aqui: (1) nunca funcionar
-// sem senha configurada; (2) descobrir QUEM está usando, para a auditoria.
+// O painel usa o Basic Auth do site (middleware), com um login por pessoa
+// (DASHBOARD_USERS). Aqui: (1) nunca funcionar sem usuários configurados;
+// (2) descobrir QUEM está usando, para a auditoria (painel:<usuário>).
 export function usuarioPainel(req: NextRequest): { usuario: string } | { erro: NextResponse } {
-  const user = process.env.DASHBOARD_BASIC_USER, pass = process.env.DASHBOARD_BASIC_PASS;
-  if (!user || !pass) return { erro: NextResponse.json({ erro: "Painel sem senha: defina DASHBOARD_BASIC_USER e DASHBOARD_BASIC_PASS no Railway." }, { status: 403 }) };
-  const h = req.headers.get("authorization") ?? "";
-  let u = "";
-  try { if (h.startsWith("Basic ")) u = atob(h.slice(6)).split(":")[0]; } catch { /* ignora */ }
-  return { usuario: u || "painel" };
+  if (!usuariosConfigurados().size) return { erro: NextResponse.json({ erro: "Painel sem usuários: defina DASHBOARD_USERS no Railway." }, { status: 403 }) };
+  const u = usuarioDoHeader(req.headers.get("authorization"));
+  if (!u) return { erro: NextResponse.json({ erro: "Não autenticado." }, { status: 401 }) };
+  return { usuario: u };
 }

@@ -98,3 +98,25 @@ describe("régua v2 — canal Evolution", () => {
     expect(await criarCanalEvolution(d).enviar(msg, "+5582999999999")).toMatchObject({ sucesso: false, incerto: true });
   });
 });
+
+import { normalizePaymentSlip } from "../src/lib/sienge/mapper";
+describe("régua v2 — boleto e agrupamento", () => {
+  it("link do boleto chega sem &amp; (Sienge devolve com entidade HTML)", () => {
+    const b = normalizePaymentSlip({ results: [{ urlReport: "https://x.sienge.com.br/r?arquivo=1&amp;formato=pdf", digitableNumber: " 2379 " }] });
+    expect(b.url).toBe("https://x.sienge.com.br/r?arquivo=1&formato=pdf");
+    expect(b.linhaDigitavel).toBe("2379");
+  });
+  it("imóvel aparece uma vez com as parcelas embaixo", () => {
+    const p = (parcela: string) => ({ parcela, imovel: "UMÁ MILAGRES — R - 07", vencimento: "25/10/2026", valor: "R$ 1,00" });
+    const t = renderTexto({ modelo: "boleto_mes", nome: "F", itens: [p("6/60"), p("1/10")] });
+    expect(t.match(/R - 07/g)).toHaveLength(1);
+    expect(t).toContain("Parcela 6/60");
+    expect(t).toContain("Parcela 1/10");
+  });
+  it("cobrança sem boleto não promete boleto", () => {
+    const t = renderTexto({ modelo: "cobranca_atraso", nome: "F", itens: [{ parcela: "8/60", imovel: "SANTORINI — CASA 008", vencimento: "05/10/2026", valor: "R$ 5.000,00" }] });
+    expect(t).not.toContain("boleto");
+    expect(t).toContain("regularizar o pagamento");
+  });
+});
+

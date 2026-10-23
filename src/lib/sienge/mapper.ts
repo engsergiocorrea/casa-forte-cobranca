@@ -56,7 +56,10 @@ export function normalizePaymentSlip(payload: any): NormalizedBoleto {
   const it = (Array.isArray(rows) ? rows[0] : rows) ?? {};
   const url = first(it?.urlReport, it?.url, it?.reportUrl);
   const linha = first(it?.digitableNumber, it?.digitableLine, it?.barCode);
-  return { url: url ? String(url) : null, linhaDigitavel: linha ? String(linha) : null };
+  // O Sienge devolve o urlReport com entidades HTML ("&amp;formato=pdf") —
+  // sem decodificar, o link chega quebrado ao cliente.
+  const urlLimpa = url ? String(url).replace(/&amp;/gi, "&").trim() : null;
+  return { url: urlLimpa || null, linhaDigitavel: linha ? String(linha).trim() : null };
 }
 
 // Telefones do cadastro do cliente no Sienge (GET /customers/{id}).

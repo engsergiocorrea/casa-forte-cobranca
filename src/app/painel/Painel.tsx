@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Icone } from "./icones";
 
 // Painel do financeiro (cobranca.casaforteinc.com.br). Abas: Hoje, Clientes,
 // Inadimplência, Pausas, Régua, Histórico. Todo envio passa por PRÉVIA →
@@ -101,6 +102,49 @@ function ModalEnvio({ pedidos, onClose }: { pedidos: Pedido[]; onClose: (enviou:
   </div>;
 }
 
+// ---------- Peças de layout ----------
+function Kpi({ i, n, rot, tom }: { i: string; n: number; rot: string; tom?: "ok" | "alerta" }) {
+  return <div className={`cf-card ${tom ?? ""}`}><span className="cf-card-ic"><Icone n={i} t={18} /></span><b>{n}</b><span className="cf-card-rot">{rot}</span></div>;
+}
+function Cabecalho({ titulo, sub, extra }: { titulo: string; sub?: string; extra?: ReactNode }) {
+  return <div className="cf-cab"><div><h1>{titulo}</h1>{sub && <p className="sub">{sub}</p>}</div>{extra}</div>;
+}
+
+// Casa Forte Brain — espaço reservado para o assistente com IA (outro projeto).
+// Nada é simulado: a janela explica o que vem e como vai funcionar.
+const EXEMPLOS_BRAIN = [
+  "Envie o boleto do Kalil",
+  "Quais clientes estão com mais de 15 dias de atraso?",
+  "Mande para mim o relatório do contrato UMAR-05",
+  "Pause as cobranças do Pedro Maria até dia 30",
+  "Gere o termo de quitação da Letícia",
+];
+function BrainModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => { document.body.style.overflow = "hidden"; const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose(); window.addEventListener("keydown", esc); return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", esc); }; }, [onClose]);
+  return <div className="cf-modal" onClick={onClose}>
+    <div className="cf-modal-in cf-brain" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="brain-tit">
+      <div className="cf-modal-cab cf-brain-cab">
+        <span className="cf-brain-orb"><Icone n="brain" t={22} /></span>
+        <div><h2 id="brain-tit">Casa Forte Brain</h2><p>Assistente com IA para o financeiro · <b>em integração</b></p></div>
+      </div>
+      <div className="cf-modal-corpo">
+        <p>Em breve, o diretor e o financeiro poderão comandar este painel em linguagem natural — por aqui ou pelo WhatsApp:</p>
+        <ul className="cf-brain-ex">{EXEMPLOS_BRAIN.map((x) => <li key={x}><Icone n="brain" t={14} /> “{x}”</li>)}</ul>
+        <div className="cf-brain-reg"><Icone n="escudo" t={18} /><div><b>As mesmas regras do painel.</b> O Brain sempre mostra a prévia e só envia depois da sua confirmação. Cada ação fica registrada no histórico com o nome de quem pediu.</div></div>
+      </div>
+      <div className="cf-modal-rodape"><button className="bt grande" onClick={onClose}>Entendi</button></div>
+    </div>
+  </div>;
+}
+
+function Rodape() {
+  const ano = new Date().getFullYear();
+  return <footer className="cf-rodape">
+    <div>© {ano} Construções e Empreendimentos Casa Forte Ltda. · CNPJ 37.301.810/0001-98 · Todos os direitos reservados.</div>
+    <div className="muted">Sistema interno de uso restrito. Acessos e ações são registrados. · <a href="https://casaforteinc.com.br" target="_blank" rel="noreferrer">casaforteinc.com.br</a></div>
+  </footer>;
+}
+
 // ---------- Hoje ----------
 function Hoje() {
   const [d, setD] = useState<any>(null); const [erro, setErro] = useState(""); const [msg, setMsg] = useState("");
@@ -117,25 +161,24 @@ function Hoje() {
   const colsLista: Col[] = [{ t: "Cliente", destaque: true }, { t: "Contrato" }, { t: "Vencimento" }, { t: "Valor", num: true }, { t: "Tipo" }];
   const colsAcao: Col[] = [{ t: "Cliente", destaque: true }, { t: "Contrato" }, { t: "Tipo" }, { t: "Status" }, { t: "O que fazer", bloco: true }];
   return <>
-    <h1>Hoje <span className="muted">· {br(d.data)}</span></h1>
-    <p className="sub">O que a comunicação financeira fez hoje e o que precisa de ação.</p>
+    <Cabecalho titulo="Hoje" sub="O que a comunicação financeira fez hoje e o que precisa de ação." extra={<span className="cf-data">{br(d.data)}</span>} />
     {c.reguaTeste ? <div className="cf-banner teste">🧪 Régua automática em <b>modo de teste</b>: nada sai sozinho para os clientes. Envios feitos aqui no painel saem de verdade.</div>
       : <div className="cf-banner ok">Régua automática <b>ligada</b> — {[c.boleto && "boleto", c.lembrete && "lembrete", c.cobranca && "cobrança"].filter(Boolean).join(", ") || "nenhum tipo"}.</div>}
     {!c.envioLigado && <div className="cf-banner erro">Envio de WhatsApp <b>desligado</b>.</div>}
     <div className="cf-cards">
-      <div className="cf-card"><b>{r.resumo.boletos}</b><span>Boletos enviados</span></div>
-      <div className="cf-card"><b>{r.resumo.lembretes}</b><span>Lembretes</span></div>
-      <div className="cf-card"><b>{r.resumo.cobrancas}</b><span>Cobranças</span></div>
-      <div className="cf-card"><b>{r.resumo.confirmacoes}</b><span>Confirmações</span></div>
-      <div className={`cf-card ${r.resumo.falhas ? "alerta" : ""}`}><b>{r.resumo.falhas}</b><span>Falhas</span></div>
-      <div className="cf-card"><b>{r.resumo.aguardandoBoleto}</b><span>Aguardando boleto</span></div>
-      <div className="cf-card"><b>{r.resumo.emTeste}</b><span>Em teste</span></div>
-      <div className="cf-card"><b>{r.resumo.pausas}</b><span>Em pausa</span></div>
+      <Kpi i="boleto" n={r.resumo.boletos} rot="Boletos enviados" />
+      <Kpi i="lembrete" n={r.resumo.lembretes} rot="Lembretes" />
+      <Kpi i="cobranca" n={r.resumo.cobrancas} rot="Cobranças" />
+      <Kpi i="confirmacao" n={r.resumo.confirmacoes} rot="Confirmações" tom="ok" />
+      <Kpi i="falha" n={r.resumo.falhas} rot="Falhas" tom={r.resumo.falhas ? "alerta" : undefined} />
+      <Kpi i="aguardando" n={r.resumo.aguardandoBoleto} rot="Aguardando boleto" />
+      <Kpi i="teste" n={r.resumo.emTeste} rot="Em teste" />
+      <Kpi i="pausa" n={r.resumo.pausas} rot="Em pausa" />
     </div>
     <div className="acoes">
-      <a className="bt leve" href="/api/painel/relatorio" target="_blank" rel="noreferrer">Ver relatório (PDF)</a>
-      <button className="bt" onClick={enviarRelatorio} disabled={!c.destinatariosRelatorio}>Enviar relatório à diretoria</button>
-      <button className="bt leve" onClick={carregar}>Atualizar</button>
+      <a className="bt leve" href="/api/painel/relatorio" target="_blank" rel="noreferrer"><Icone n="pdf" /> Relatório (PDF)</a>
+      <button className="bt" onClick={enviarRelatorio} disabled={!c.destinatariosRelatorio}><Icone n="enviar" /> Enviar à diretoria</button>
+      <button className="bt leve" onClick={carregar}><Icone n="atualizar" /> Atualizar</button>
     </div>
     {msg && <p className="muted">{msg}</p>}
     <section className="cf-box"><h2>Falhas — precisam de ação</h2>
@@ -172,8 +215,7 @@ function Clientes({ abrirId }: { abrirId: number | null }) {
   }, [q]);
   if (sel) return <Ficha customerId={sel} voltar={() => setSel(null)} />;
   return <>
-    <h1>Clientes</h1>
-    <p className="sub">Busque pelo nome, número do contrato ou unidade.</p>
+    <Cabecalho titulo="Clientes" sub="Busque pelo nome, número do contrato ou unidade." />
     <input className="busca" type="search" inputMode="search" autoComplete="off" autoCorrect="off" autoCapitalize="none" placeholder="Ex.: Kalil, UMAR-05, R - 211…" value={q} onChange={(e) => setQ(e.target.value)} />
     <div className="cf-lista">
       {lista.map((c) => <button key={c.customerId} onClick={() => setSel(c.customerId)}><b>{c.nome}</b><small>{c.contratos.map((k: any) => `${k.numero} · ${k.empreendimento} ${k.unidades.join(", ")}`).join("  |  ")}</small></button>)}
@@ -264,8 +306,7 @@ function Inadimplencia({ abrirCliente }: { abrirCliente: (id: number) => void })
   if (erro) return <div className="cf-banner erro">{erro}</div>;
   const total = vis.reduce((s, l) => s + l.saldo, 0);
   return <div className="com-barra">
-    <h1>Inadimplência</h1>
-    <p className="sub">Parcelas vencidas e em aberto no Sienge (ao vivo). Marque e envie a cobrança — uma mensagem por cliente, com prévia.</p>
+    <Cabecalho titulo="Inadimplência" sub="Parcelas vencidas e em aberto no Sienge (ao vivo). Marque e envie a cobrança — uma mensagem por cliente, com prévia." />
     <div className="acoes">
       <select value={filtro} onChange={(e) => setFiltro(e.target.value)} aria-label="Empreendimento"><option value="">Todos os empreendimentos</option>{emps.map((e) => <option key={e}>{e}</option>)}</select>
       <button className="bt leve" onClick={carregar}>Atualizar</button>
@@ -324,8 +365,7 @@ function Pausas() {
   useEffect(carregar, [carregar]);
   async function remover(id: string) { if (!confirm("Remover esta pausa? O cliente volta a receber as mensagens automáticas.")) return; await api(`/api/painel/pausas?id=${id}`, { method: "DELETE" }); carregar(); }
   return <>
-    <h1>Pausas</h1>
-    <p className="sub">Clientes ou contratos que não recebem mensagens automáticas (ex.: em negociação). Envios manuais continuam possíveis.</p>
+    <Cabecalho titulo="Pausas" sub="Clientes ou contratos que não recebem mensagens automáticas (ex.: em negociação). Envios manuais continuam possíveis." />
     {!novo && <div className="acoes"><button className="bt" onClick={() => setNovo(true)}>Nova pausa</button></div>}
     {novo && <FormPausa onDone={() => { setNovo(false); carregar(); }} />}
     <section className="cf-box">{!ps ? <p className="muted">Carregando…</p> :
@@ -347,7 +387,7 @@ function Regua() {
   }
   const lig = (v: boolean) => v ? <span className="cf-st ok">Ligado</span> : <span className="cf-st">Desligado</span>;
   return <>
-    <h1>Régua automática</h1>
+    <Cabecalho titulo="Régua automática" />
     <p className="sub">Todo dia às 08h30: boleto {cfg?.diasAntes ?? 10} dias antes, lembrete no vencimento e cobrança em D+{(cfg?.etapas ?? [1, 7, 15]).join("/D+")} — só parcelas com boleto gerado e em aberto, exceto clientes em pausa. Confirmação de pagamento às 12h e 18h.</p>
     {cfg && <section className="cf-box">
       <Tabela cols={[{ t: "Item", destaque: true }, { t: "Situação" }]} linhas={[
@@ -379,8 +419,7 @@ function Historico() {
   const [f, setF] = useState({ tipo: "", status: "", dias: "7" }); const [ls, setLs] = useState<any[] | null>(null);
   useEffect(() => { setLs(null); api(`/api/painel/historico?${new URLSearchParams(f)}`).then(setLs).catch(() => setLs([])); }, [f]);
   return <>
-    <h1>Histórico</h1>
-    <p className="sub">Tudo o que o sistema enviou, tentou enviar ou registrou.</p>
+    <Cabecalho titulo="Histórico" sub="Tudo o que o sistema enviou, tentou enviar ou registrou." />
     <div className="cf-filtros">
       <select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })} aria-label="Tipo"><option value="">Todos os tipos</option><option value="BOLETO">Boleto</option><option value="LEMBRETE_D0">Lembrete</option><option value="COBRANCA">Cobrança</option><option value="CONFIRMACAO">Confirmação</option><option value="RELATORIO_DIA">Relatório</option></select>
       <select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} aria-label="Status"><option value="">Todos os status</option><option value="ENVIADA">Enviada</option><option value="SENT">Enviada (confirmação)</option><option value="DRY_RUN">Teste</option><option value="PLANEJADA">Aguardando</option><option value="ERRO">Erro</option><option value="SEM_WHATSAPP">Sem WhatsApp</option><option value="SEM_TELEFONE">Sem telefone</option><option value="INCERTA">Incerta</option></select>
@@ -394,25 +433,50 @@ function Historico() {
 }
 
 // ---------- Shell ----------
+const ABAS: [Aba, string, string][] = [["hoje", "Hoje", "hoje"], ["clientes", "Clientes", "clientes"], ["inadimplencia", "Inadimplência", "inadimplencia"], ["pausas", "Pausas", "pausas"], ["regua", "Régua", "regua"], ["historico", "Histórico", "historico"]];
+
 export default function Painel() {
   const [aba, setAba] = useState<Aba>("hoje");
   const [cliente, setCliente] = useState<number | null>(null);
-  const abas: [Aba, string][] = [["hoje", "Hoje"], ["clientes", "Clientes"], ["inadimplencia", "Inadimplência"], ["pausas", "Pausas"], ["regua", "Régua"], ["historico", "Histórico"]];
+  const [brain, setBrain] = useState(false);
   const ir = (k: Aba) => { setAba(k); if (k !== "clientes") setCliente(null); window.scrollTo({ top: 0 }); };
+  useEffect(() => { const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setBrain(true); } }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, []);
   return <div className="cf">
+    <aside className="cf-side" aria-label="Menu">
+      <img className="cf-side-logo" src="/marca/logo-claro.png" alt="Casa Forte Construtora" width={600} height={421} />
+      <div className="cf-side-tit">Financeiro</div>
+      <nav className="cf-side-nav">{ABAS.map(([k, r, i]) => <button key={k} className={aba === k ? "ativo" : ""} aria-current={aba === k ? "page" : undefined} onClick={() => ir(k)}><Icone n={i} /> {r}</button>)}</nav>
+      <button className="cf-side-brain" onClick={() => setBrain(true)}>
+        <span className="cf-brain-orb pequeno"><Icone n="brain" t={16} /></span>
+        <span><b>Casa Forte Brain</b><small>IA · em integração</small></span>
+      </button>
+    </aside>
     <header className="cf-top">
       <div className="cf-top-in">
-        <div className="cf-marca">CASA <span>FORTE</span> <em>Financeiro</em></div>
-        <nav className="cf-nav" aria-label="Seções">{abas.map(([k, r]) => <button key={k} className={aba === k ? "ativo" : ""} aria-current={aba === k ? "page" : undefined} onClick={() => ir(k)}>{r}</button>)}</nav>
+        <img className="cf-top-logo" src="/marca/logo-claro.png" alt="Casa Forte" width={600} height={421} />
+        <span className="cf-top-tit">Financeiro</span>
+        <button className="cf-top-brain" onClick={() => setBrain(true)} aria-label="Casa Forte Brain"><Icone n="brain" t={18} /> Brain</button>
       </div>
+      <nav className="cf-nav" aria-label="Seções">{ABAS.map(([k, r, i]) => <button key={k} className={aba === k ? "ativo" : ""} aria-current={aba === k ? "page" : undefined} onClick={() => ir(k)}><Icone n={i} t={16} /> {r}</button>)}</nav>
     </header>
-    <main className="cf-main">
-      {aba === "hoje" && <Hoje />}
-      {aba === "clientes" && <Clientes abrirId={cliente} />}
-      {aba === "inadimplencia" && <Inadimplencia abrirCliente={(id) => { setCliente(id); ir("clientes"); setCliente(id); }} />}
-      {aba === "pausas" && <Pausas />}
-      {aba === "regua" && <Regua />}
-      {aba === "historico" && <Historico />}
-    </main>
+    <div className="cf-area">
+      <div className="cf-comando">
+        <button className="cf-comando-in" onClick={() => setBrain(true)}>
+          <Icone n="brain" t={18} className="cf-comando-ic" />
+          <span>Pergunte ao Casa Forte Brain… <em>ex.: “envie o boleto do Kalil”</em></span>
+          <kbd>⌘K</kbd>
+        </button>
+      </div>
+      <main className="cf-main">
+        {aba === "hoje" && <Hoje />}
+        {aba === "clientes" && <Clientes abrirId={cliente} />}
+        {aba === "inadimplencia" && <Inadimplencia abrirCliente={(id) => { ir("clientes"); setCliente(id); }} />}
+        {aba === "pausas" && <Pausas />}
+        {aba === "regua" && <Regua />}
+        {aba === "historico" && <Historico />}
+        <Rodape />
+      </main>
+    </div>
+    {brain && <BrainModal onClose={() => setBrain(false)} />}
   </div>;
 }

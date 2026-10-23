@@ -22,6 +22,12 @@ na confirmação.
 
 ## 2. Princípios (não negociáveis)
 
+0. **Só sai mensagem de parcela com boleto gerado e em aberto no Sienge**
+   (decisão de 23/10/2026) — boleto, lembrete e cobrança. Boleto cancelado ou
+   não gerado = não envia (fica `PLANEJADA`, motivo `SEM_BOLETO_ATIVO` /
+   `BOLETO_AINDA_NAO_GERADO`). Cliente em negociação também pode ser pausado
+   (§4.10).
+
 1. **Sienge é a fonte da verdade financeira.** Nada de calcular saldo, juros ou
    multa. Toda mensagem é revalidada no Sienge imediatamente antes do envio
    (boleto/cobrança só com saldo > 0; confirmação só com saldo = 0).

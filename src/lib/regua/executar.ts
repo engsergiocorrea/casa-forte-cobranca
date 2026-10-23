@@ -106,19 +106,26 @@ export async function runRegua(opts: Opcoes = {}): Promise<ResumoRegua> {
       const atual = parcelasCache.get(it.billId)!.find((x) => x.installmentId === it.installmentId);
       if (!atual) { pular("PARCELA_NAO_ENCONTRADA"); continue; }
       if (!(atual.balanceDue > 0)) { pular("JA_PAGA"); continue; }
+      // Regra (23/10/2026): só sai mensagem de parcela com boleto GERADO e em
+      // aberto no Sienge — vale para boleto, lembrete e cobrança. Boleto
+      // cancelado (ex.: cliente em negociação deve procurar a Casa Forte) ou
+      // ainda não gerado (INCC-DI) = não envia; fica PLANEJADA com o motivo.
       let boleto = { url: null as string | null, linhaDigitavel: null as string | null };
-      try { boleto = normalizePaymentSlip(await sienge.getPaymentSlip(it.billId, it.installmentId)); } catch { /* sem boleto */ }
-      if (tipo === "BOLETO" && !boleto.url && !boleto.linhaDigitavel) { aguardandoBoleto.push(it); continue; }
+      if (atual.generatedBoleto) {
+        try { boleto = normalizePaymentSlip(await sienge.getPaymentSlip(it.billId, it.installmentId)); } catch { /* sem boleto */ }
+      }
+      if (!atual.generatedBoleto || (!boleto.url && !boleto.linhaDigitavel)) { aguardandoBoleto.push(it); continue; }
       prontos.push({
         item: it, saldo: atual.balanceDue,
         parcela: { parcela: it.parcela, imovel: it.imovel, vencimento: brData(it.vencimento), valor: fmtBRL(atual.balanceDue), boletoUrl: boleto.url, linhaDigitavel: boleto.linhaDigitavel },
       });
     }
 
-    // Boleto ainda não gerado (INCC-DI atrasado): fica PLANEJADA e volta amanhã.
+    // Sem boleto gerado/ativo: fica PLANEJADA e é reavaliada na próxima execução.
     for (const it of aguardandoBoleto) {
-      s.pulados.push({ billId: it.billId, installmentId: it.installmentId, tipo, motivo: "BOLETO_AINDA_NAO_GERADO" });
-      if (!preview) await registrar(it, { status: "PLANEJADA", motivo: "BOLETO_AINDA_NAO_GERADO" }, false);
+      const motivo = tipo === "BOLETO" ? "BOLETO_AINDA_NAO_GERADO" : "SEM_BOLETO_ATIVO";
+      s.pulados.push({ billId: it.billId, installmentId: it.installmentId, tipo, motivo });
+      if (!preview) await registrar(it, { status: "PLANEJADA", motivo }, false);
     }
     if (!prontos.length) continue;
 

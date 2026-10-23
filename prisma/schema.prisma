@@ -333,3 +333,23 @@ model PausaRegua {
   @@index([customerId])
   @@index([billId])
 }
+
+// Cópia das parcelas lidas do bulk-data (income) — o painel usa para mostrar
+// o nº da parcela ("4/60"), unidade e documento sem gastar o limite diário do
+// Sienge. Atualizada a cada execução da régua e, sob demanda, por título.
+model ParcelaCache {
+  billId        Int
+  installmentId Int
+  parcela       String   // "4/60"
+  tipoParc      String   // "PM"
+  unidade       String
+  documento     String   // "CT / UMAR-211"
+  centroCusto   String
+  vencimento    String   // yyyy-mm-dd
+  clientId      Int?
+  clientName    String
+  atualizadoEm  DateTime @updatedAt
+
+  @@id([billId, installmentId])
+  @@index([clientId])
+}

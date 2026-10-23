@@ -196,6 +196,18 @@ Substitui `/consultas`. Telas:
 Todas as ações de envio passam pelo mesmo núcleo (dedupe + travas + auditoria).
 Acesso: Basic Auth (hoje); login por usuário quando o Brain estiver ligado.
 
+**Implementado (23/10/2026)** em `/` (cobranca.casaforteinc.com.br), protegido
+pelo Basic Auth do site (`DASHBOARD_BASIC_USER/PASS`; sem senha configurada as
+rotas recusam). `src/app/painel/Painel.tsx` + `/api/painel/*`:
+Hoje (resumo/falhas/aguardando/teste, PDF e envio do relatório), Clientes
+(busca → ficha com parcelas ao vivo, envio manual de boleto/lembrete/cobrança
+com prévia, pausar), Inadimplência (lote de cobranças por cliente), Pausas,
+Régua (prévia/rodar), Histórico. Envio manual (`src/lib/painel/envio-manual.ts`):
+revalida saldo e boleto ativo, 1x por parcela/tipo/dia, só travas-mestras (sem
+allowlist nem REGUA_DRY_RUN), `solicitadoPor = painel:<usuário>`. Nº da parcela
+vem do cache `ParcelaCache` (gravado pela régua; se faltar, 1 consulta bulk).
+A antiga `/consultas` continua disponível.
+
 ### 4.8 API para o Casa Forte Brain
 
 `POST /api/brain/comandos` — `Authorization: Bearer <BRAIN_API_TOKEN>`

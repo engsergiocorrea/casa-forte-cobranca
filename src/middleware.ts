@@ -7,7 +7,10 @@ export function middleware(req: NextRequest) {
     path.startsWith("/api/webhooks/") ||
     path === "/api/health" ||
     path.startsWith("/api/test/") ||
-    path.startsWith("/api/internal/")
+    path.startsWith("/api/internal/") ||
+    // Marca e ícones do app (públicos, sem dados) — o iPhone busca o ícone
+    // da "Tela de Início" sem enviar a senha.
+    path.startsWith("/marca/") || path === "/icon.png" || path === "/apple-icon.png"
   ) return NextResponse.next();
   const user = process.env.DASHBOARD_BASIC_USER;
   const pass = process.env.DASHBOARD_BASIC_PASS;

@@ -312,3 +312,24 @@ model Comunicacao {
   @@index([customerId])
   @@index([criadaEm])
 }
+
+// Exceções da régua v2: cliente ou título que NÃO deve receber mensagens
+// automáticas (ex.: inadimplente em negociação, boletos cancelados para ele
+// procurar a Casa Forte). Vale para os tipos listados (ou TODOS) até `ate`
+// (null = sem prazo). Remoção é lógica (removidaEm) para manter histórico.
+model PausaRegua {
+  id         String    @id @default(cuid())
+  customerId Int?      // cliente no Sienge (todas as parcelas dele)
+  billId     Int?      // ou só um título/contrato
+  contrato   String?   // referência legível (ex.: UMAR210)
+  clienteNome String?
+  tipos      String    @default("TODOS") // TODOS | BOLETO,LEMBRETE_D0,COBRANCA
+  ate        DateTime? // inclusive; null = até remover
+  motivo     String
+  criadoPor  String    @default("manual") // manual | painel:<usuario> | brain:<ator>
+  criadaEm   DateTime  @default(now())
+  removidaEm DateTime?
+
+  @@index([customerId])
+  @@index([billId])
+}

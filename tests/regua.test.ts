@@ -120,3 +120,29 @@ describe("régua v2 — boleto e agrupamento", () => {
   });
 });
 
+
+import { aplicarPausas, pausaCobre } from "../src/lib/regua/pausas";
+describe("régua v2 — pausas", () => {
+  const item = (o: any = {}) => ({ clientId: 22, billId: 43, tipo: "COBRANCA", ...o }) as any;
+  const pausa = (o: any = {}) => ({ id: "p1", customerId: 22, billId: null, tipos: "TODOS", ate: null, motivo: "negociação", ...o });
+  it("pausa por cliente cobre todos os títulos dele", () => {
+    expect(pausaCobre(pausa(), item({ billId: 18 }), "2026-10-23")).toBe(true);
+    expect(pausaCobre(pausa(), item({ clientId: 99 }), "2026-10-23")).toBe(false);
+  });
+  it("pausa por título cobre só aquele título", () => {
+    const p = pausa({ customerId: null, billId: 43 });
+    expect(pausaCobre(p, item(), "2026-10-23")).toBe(true);
+    expect(pausaCobre(p, item({ billId: 18 }), "2026-10-23")).toBe(false);
+  });
+  it("respeita tipos e data final", () => {
+    expect(pausaCobre(pausa({ tipos: "COBRANCA" }), item({ tipo: "BOLETO" }), "2026-10-23")).toBe(false);
+    expect(pausaCobre(pausa({ tipos: "BOLETO,COBRANCA" }), item(), "2026-10-23")).toBe(true);
+    expect(pausaCobre(pausa({ ate: "2026-10-22" }), item(), "2026-10-23")).toBe(false);
+    expect(pausaCobre(pausa({ ate: "2026-10-23" }), item(), "2026-10-23")).toBe(true);
+  });
+  it("separa liberados e pausados", () => {
+    const r = aplicarPausas([item(), item({ clientId: 1 })], [pausa()], "2026-10-23");
+    expect(r.liberados).toHaveLength(1);
+    expect(r.pausados[0].pausa.motivo).toBe("negociação");
+  });
+});

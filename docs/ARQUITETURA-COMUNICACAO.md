@@ -212,6 +212,16 @@ no Sienge, a partir de **modelo aprovado pelo jurídico**. Pendente: modelo do
 texto e quem assina (o termo provavelmente exige assinatura — ver certificado
 e-CNPJ A1 em `CONFIRMACAO-PAGAMENTO.md`).
 
+### 4.10 Pausas (exceções da régua)
+
+Tabela `PausaRegua`: cliente (todas as parcelas) ou título que não recebe
+mensagens automáticas — ex.: inadimplente em negociação cujos boletos foram
+cancelados para ele procurar a Casa Forte (caso Kalil, 23/10/2026). Tipos
+(`TODOS` ou `BOLETO,LEMBRETE_D0,COBRANCA`), data final opcional, motivo e quem
+criou. O executor pula os itens pausados (`pulados: PAUSA: <motivo>`).
+Gestão: `GET/POST/DELETE /api/internal/regua/pausas` (Bearer CRON_SECRET);
+depois o painel e o Brain usam a mesma rota.
+
 ## 5. Redesenho do que existe
 
 | Hoje | Vira |

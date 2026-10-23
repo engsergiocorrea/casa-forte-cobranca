@@ -8,6 +8,7 @@ import { canSendTo } from "../safety";
 import { canalAtual, type CanalWhatsApp, type ItemParcela, type MensagemPadrao, type ModeloMensagem } from "../canal";
 import { renderTexto } from "../canal/modelos";
 import { agruparPorClienteTipo, janelaRegua, planejarRegua, type ItemPlano, type TipoRegua } from "./planejar";
+import { aplicarPausas } from "./pausas";
 
 // Executor da régua v2: 1 chamada bulk (income por vencimento) → plano →
 // revalidação no Sienge (saldo > 0) → boleto/telefone → reivindica no outbox
@@ -67,9 +68,15 @@ export async function runRegua(opts: Opcoes = {}): Promise<ResumoRegua> {
   const parcelas = normalizeIncomeInstallments(await sienge.listIncomeByDueDate(s.janela.inicio, s.janela.fim));
   s.parcelasLidas = parcelas.length;
 
-  // 2) Plano do dia (só tipos ligados).
-  const plano = planejarRegua(parcelas, hoje, cfg).filter((i) => ligados.includes(i.tipo));
-  for (const i of plano) s.planejadas[i.tipo]++;
+  // 2) Plano do dia (só tipos ligados), menos quem está em pausa (PausaRegua).
+  const bruto = planejarRegua(parcelas, hoje, cfg).filter((i) => ligados.includes(i.tipo));
+  for (const i of bruto) s.planejadas[i.tipo]++;
+  const pausasAtivas = (await db.pausaRegua.findMany({ where: { removidaEm: null } })).map((p) => ({
+    id: p.id, customerId: p.customerId, billId: p.billId, tipos: p.tipos, motivo: p.motivo,
+    ate: p.ate ? p.ate.toISOString().slice(0, 10) : null,
+  }));
+  const { liberados: plano, pausados } = aplicarPausas(bruto, pausasAtivas, hoje);
+  for (const { item, pausa } of pausados) s.pulados.push({ billId: item.billId, installmentId: item.installmentId, tipo: item.tipo, motivo: `PAUSA: ${pausa.motivo}` });
 
   // 3) Tira o que já foi tratado (enviado, incerto, cancelado...).
   const existentes = plano.length

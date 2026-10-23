@@ -27,6 +27,13 @@ export function isEvolutionConfigured() {
 // ("+351…", como sai de normalizeCustomerPhones), é usado como está — antes,
 // número estrangeiro curto (ex.: +351 com 8 dígitos = 11 dígitos) caía na
 // regra brasileira de "10–11 dígitos = DDD+número" e ganhava um 55 na frente.
+// Número plausível para o WhatsApp: DDI + número, entre 10 e 15 dígitos
+// (E.164). Antes exigia 12+ (formato do Brasil) e recusava, p.ex., os EUA/Canadá
+// (+1 + 10 dígitos = 11) — caso SANTORINI102, 22/10/2026.
+export function numeroValido(digitos: string): boolean {
+  return /^\d{10,15}$/.test(digitos) && !digitos.startsWith("0");
+}
+
 export function toEvolutionNumber(to: string) {
   const s = String(to ?? "").trim();
   if (s.startsWith("+")) return s.replace(/\D/g, "");
@@ -80,14 +87,14 @@ export async function evolutionNumberExists(to: string): Promise<boolean | null>
 
 export function evolutionSendText(params: { to: string; text: string }): Promise<EvolutionResult> {
   const number = toEvolutionNumber(params.to);
-  if (!number || number.length < 12) return Promise.resolve({ success: false, messageId: null, error: "Telefone inválido." });
+  if (!numeroValido(number)) return Promise.resolve({ success: false, messageId: null, error: "Telefone inválido." });
   return post("/message/sendText/{instance}", { number, text: params.text });
 }
 
 // `mediaUrl` vai no campo `media` da Evolution: aceita URL pública OU base64 puro.
 export function evolutionSendDocument(params: { to: string; mediaUrl: string; fileName: string; caption?: string }): Promise<EvolutionResult> {
   const number = toEvolutionNumber(params.to);
-  if (!number || number.length < 12) return Promise.resolve({ success: false, messageId: null, error: "Telefone inválido." });
+  if (!numeroValido(number)) return Promise.resolve({ success: false, messageId: null, error: "Telefone inválido." });
   return post("/message/sendMedia/{instance}", {
     number, mediatype: "document", mimetype: "application/pdf",
     caption: params.caption ?? "", media: params.mediaUrl, fileName: params.fileName,

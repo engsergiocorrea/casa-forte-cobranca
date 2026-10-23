@@ -22,3 +22,16 @@ describe("número para a Evolution", () => {
   });
 });
 
+
+import { numeroValido } from "../src/lib/whatsapp/evolution";
+describe("número válido para envio", () => {
+  it("aceita Brasil, Portugal e EUA/Canadá", () => {
+    expect(numeroValido(toEvolutionNumber("+5582999999999"))).toBe(true);
+    expect(numeroValido(toEvolutionNumber("+351912345678"))).toBe(true);
+    expect(numeroValido(toEvolutionNumber("+12025550123"))).toBe(true); // +1 e 10 dígitos = 11
+  });
+  it("recusa curtos ou vazios", () => {
+    expect(numeroValido("")).toBe(false);
+    expect(numeroValido("55829999")).toBe(false);
+  });
+});

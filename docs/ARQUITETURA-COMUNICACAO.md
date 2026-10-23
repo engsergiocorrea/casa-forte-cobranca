@@ -174,6 +174,14 @@ que "aceito pelo canal" ≠ "entregue". Os webhooks de status (Evolution
   (do Sienge), histórico de comunicações.
 - Mesmo motor de PDF do recibo (`pdf-lib`, identidade Casa Forte).
 
+**Implementado (23/10/2026):** `src/lib/relatorio/{dados,pdf,enviar}.ts`.
+`GET /api/internal/relatorio?data=yyyy-mm-dd` baixa o PDF (não envia);
+`POST ...&enviar=1` envia na hora para `REPORT_RECIPIENTS` (teste/manual).
+Automático: depois da execução das 18h do `cron-payment-confirmations`, com
+`REPORT_AUTO_ENABLED=true`, 1x por dia/destinatário, só se houve boleto
+enviado ou falha. Não consulta o Sienge (só o banco). Cada envio fica em
+`Comunicacao` (tipo `RELATORIO_DIA`).
+
 ### 4.7 Painel `/painel`
 
 Substitui `/consultas`. Telas:

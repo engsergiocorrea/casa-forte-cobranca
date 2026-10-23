@@ -67,6 +67,10 @@ const schema = z.object({
   BOLETO_DIAS_ANTES: z.coerce.number().int().min(1).max(20).default(10),
   COBRANCA_ETAPAS: z.string().default("1,7,15").transform((v) => v.split(",").map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0)),
   COBRANCA_TOLERANCIA_DIAS: z.coerce.number().int().min(0).max(5).default(3),
+  // Relatório do dia (PDF por WhatsApp) — telefones E.164 separados por vírgula
+  // (Sergio e Bruna). Automático só com REPORT_AUTO_ENABLED=true.
+  REPORT_RECIPIENTS: z.string().default(""),
+  REPORT_AUTO_ENABLED: bool,
   CRON_SECRET: z.string().min(16).default("CHANGE_ME_CHANGE_ME"),
 });
 

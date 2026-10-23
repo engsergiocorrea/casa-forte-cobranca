@@ -79,7 +79,7 @@ export async function gerarRelatorioPdf(d: DadosRelatorio, emitidoEm: Date, tz =
 
   // Tabelas
   const secao = (t: string, nota?: string) => {
-    garante(40);
+    garante(90); // título + nota + cabeçalho + 1ª linha juntos (não deixa título órfão no pé da página)
     txt(t, M, y, 11, neg); y -= 4;
     page.drawLine({ start: { x: M, y: y - 2 }, end: { x: M + 40, y: y - 2 }, thickness: 1, color: VERMELHO });
     y -= 14;
@@ -92,7 +92,7 @@ export async function gerarRelatorioPdf(d: DadosRelatorio, emitidoEm: Date, tz =
       let x = M; for (const c of cols) { const t = c.titulo.toUpperCase(); txt(t, c.direita ? x + c.w - 4 - neg.widthOfTextAtSize(limpo(t), 6.5) : x + 4, y - 11, 6.5, neg, SECUNDARIO); x += c.w; }
       y -= 16;
     };
-    if (!linhas.length) { garante(16); txt(vazio, M, y - 10, 8, reg, SUAVE); y -= 22; return; }
+    if (!linhas.length) { garante(16); txt(vazio, M, y - 4, 8, reg, SUAVE); y -= 30; return; }
     head();
     for (const ln of linhas) {
       const partes = ln.map((v, i) => quebrar(v, reg, 7.5, cols[i].w - 8));

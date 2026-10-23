@@ -1,7 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { db } from "../db";
 import { env } from "../env";
-import { canSendTo } from "../safety";
 import { evolutionSendDocument } from "../whatsapp/evolution";
 import { deveEnviarAutomatico, legendaRelatorio, montarRelatorio, type DadosRelatorio } from "./dados";
 import { gerarRelatorioPdf } from "./pdf";
@@ -34,7 +33,7 @@ export function destinatariosRelatorio(): string[] {
 
 export type ResultadoRelatorio = { data: string; enviado: boolean; motivo?: string; destinatarios: { destino: string; status: string; detalhe?: string }[]; resumo: DadosRelatorio["resumo"] };
 
-export async function enviarRelatorioDia(data: string, modo: "auto" | "manual", solicitadoPor = modo === "auto" ? "cron" : "manual"): Promise<ResultadoRelatorio> {
+export async function enviarRelatorioDia(data: string, modo: "auto" | "manual", solicitadoPor = modo === "auto" ? "cron" : "manual", opts: { apenasPendentes?: boolean } = {}): Promise<ResultadoRelatorio> {
   const e = env();
   const d = await coletarRelatorio(data);
   const base: ResultadoRelatorio = { data, enviado: false, destinatarios: [], resumo: d.resumo };
@@ -47,6 +46,11 @@ export async function enviarRelatorioDia(data: string, modo: "auto" | "manual", 
   const mascara = (s: string) => s.replace(/\d(?=\d{3})/g, "•");
 
   for (const destino of dest) {
+    // Reenvio manual só para quem ainda não recebeu o relatório desse dia.
+    if (opts.apenasPendentes) {
+      const ja = await db.comunicacao.findFirst({ where: { tipo: "RELATORIO_DIA", destino, status: "ENVIADA", dedupeKey: { startsWith: `relatorio:${data}:` } } });
+      if (ja) { base.destinatarios.push({ destino: mascara(destino), status: "JA_RECEBEU" }); continue; }
+    }
     const dedupeKey = modo === "auto" ? `relatorio:${data}:${destino}` : `relatorio:${data}:${destino}:manual:${Date.now()}`;
     try {
       await db.comunicacao.create({ data: { tipo: "RELATORIO_DIA", dedupeKey, destino, status: "ENVIANDO", tentativas: 1, conteudo: legenda, solicitadoPor } });
@@ -55,11 +59,10 @@ export async function enviarRelatorioDia(data: string, modo: "auto" | "manual", 
       throw err;
     }
     const marcar = (status: string, extra: Prisma.ComunicacaoUpdateInput = {}) => db.comunicacao.update({ where: { dedupeKey }, data: { status, ...extra } });
-    const gate = canSendTo(destino, {
-      appMode: e.APP_MODE, outboundEnabled: e.OUTBOUND_MESSAGING_ENABLED, dryRun: e.WHATSAPP_DRY_RUN,
-      allowAllProduction: e.WHATSAPP_ALLOW_ALL_PRODUCTION, allowlist: e.WHATSAPP_ALLOWLIST.split(",").map((x) => x.trim()).filter(Boolean),
-    });
-    if (!gate.allowed) { await marcar("BLOQUEADA", { motivo: gate.reason }); base.destinatarios.push({ destino: mascara(destino), status: "BLOQUEADA", detalhe: gate.reason }); continue; }
+    // Destinatários internos configurados pelo admin (REPORT_RECIPIENTS): não
+    // passam pela allowlist de clientes — só pelas travas-mestras.
+    const bloqueio = !e.OUTBOUND_MESSAGING_ENABLED ? "MASTER_SWITCH_OFF" : e.WHATSAPP_DRY_RUN ? "DRY_RUN" : null;
+    if (bloqueio) { await marcar("BLOQUEADA", { motivo: bloqueio }); base.destinatarios.push({ destino: mascara(destino), status: "BLOQUEADA", detalhe: bloqueio }); continue; }
     const r = await evolutionSendDocument({ to: destino, mediaUrl: pdf, fileName: `relatorio-casa-forte-${data}.pdf`, caption: legenda });
     if (r.success) { await marcar("ENVIADA", { canal: "evolution", providerMessageId: r.messageId, enviadaEm: new Date() }); base.enviado = true; base.destinatarios.push({ destino: mascara(destino), status: "ENVIADA" }); }
     else {

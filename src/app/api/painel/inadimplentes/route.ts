@@ -12,7 +12,7 @@ import { cacheDe } from "@/lib/painel/parcelas";
 // última cobrança registrada e se o cliente está em pausa.
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
-  const a = usuarioPainel(req); if ("erro" in a) return a.erro;
+  const a = usuarioPainel(req, { brain: true }); if ("erro" in a) return a.erro;
   const hoje = localDateKey(new Date(), env().TIMEZONE);
   const cs = (await contratos()).filter((c) => c.billId && !/cancel/i.test(c.situacao));
   const cache = await cacheDe(cs.map((c) => c.billId!) );

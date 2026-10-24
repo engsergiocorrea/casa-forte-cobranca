@@ -116,6 +116,29 @@ button{padding:10px 16px;border-radius:10px;border:1px solid #e5e5df;background:
 .cf-brain-ex{list-style:none;padding:0;margin:12px 0 16px;display:grid;gap:8px}
 .cf-brain-ex li{display:flex;align-items:center;gap:10px;background:var(--faixa);border:1px solid var(--borda);border-radius:12px;padding:10px 12px;font-size:.9rem;color:var(--texto)}
 .cf-brain-ex li svg{color:#7B5CFF}
+.cf-brain .cf-brain-cab{position:relative}
+.cf-brain-fechar{margin-left:auto;align-self:flex-start;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:#fff;border-radius:10px;width:36px;height:36px;cursor:pointer;font-size:.9rem}
+.cf-brain-ex li{padding:0;background:none;border:0}
+.cf-brain-ex li button{width:100%;display:flex;align-items:center;gap:10px;background:var(--faixa);border:1px solid var(--borda);border-radius:12px;padding:10px 12px;font:inherit;font-size:.9rem;color:var(--texto);text-align:left;cursor:pointer;transition:border-color .15s}
+.cf-brain-ex li button:hover:not(:disabled){border-color:#BDB0FF}.cf-brain-ex li button:disabled{cursor:default;opacity:.7}
+.cf-brain-corpo{min-height:280px}
+.cf-brain-msgs{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.cf-brain-msg{max-width:88%;padding:10px 14px;border-radius:16px;font-size:.93rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.cf-brain-linha{white-space:pre-wrap}
+.cf-brain-msg.eu{align-self:flex-end;background:var(--tinta);color:#fff;border-bottom-right-radius:6px}
+.cf-brain-msg.brain{align-self:flex-start;background:var(--faixa);border:1px solid var(--borda);border-bottom-left-radius:6px}
+.cf-brain-msg.erro{align-self:flex-start;background:#FFF1EE;border:1px solid #FFD0C4;color:#9A2A0E}
+.cf-brain-msg.pensando{display:flex;gap:5px;padding:14px 16px}
+.cf-brain-msg.pensando span{width:7px;height:7px;border-radius:50%;background:#7B5CFF;animation:cfPulso 1.1s infinite ease-in-out}
+.cf-brain-msg.pensando span:nth-child(2){animation-delay:.15s}.cf-brain-msg.pensando span:nth-child(3){animation-delay:.3s}
+@keyframes cfPulso{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+.cf .cf-brain-rodape{flex-direction:column;align-items:stretch}
+.cf-brain-conf{display:flex;gap:8px}.cf-brain-conf .bt{flex:1}
+.cf-brain-form{display:flex;gap:8px;align-items:flex-end}
+.cf-brain-form textarea{flex:1;resize:none;font:inherit;font-size:16px;border:1px solid var(--borda);border-radius:12px;padding:11px 12px;min-height:44px;max-height:140px;background:#fff;color:var(--texto)}
+.cf-brain-form textarea:focus{outline:2px solid #BDB0FF;outline-offset:0;border-color:#7B5CFF}
+.cf .cf-brain-form .bt{flex:0 0 auto}
+.cf-brain-limpar{align-self:center;background:none;border:0;color:var(--suave);font:inherit;font-size:.8rem;cursor:pointer;text-decoration:underline}
 .cf-brain-reg{display:flex;gap:12px;align-items:flex-start;background:#F3F0FF;border:1px solid #DDD5FF;color:#3B2E8C;border-radius:12px;padding:12px;font-size:.86rem}
 /* Barra de ações */
 .cf-barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--borda);border-radius:16px;padding:10px 12px;margin-top:16px;position:sticky;bottom:14px;z-index:5;box-shadow:var(--sombra2)}
@@ -166,6 +189,7 @@ button{padding:10px 16px;border-radius:10px;border:1px solid #e5e5df;background:
   .cf-modal{padding:0;align-items:stretch}
   .cf-modal-in{border-radius:0;max-width:none;max-height:none;height:100%;height:100dvh;padding-top:env(safe-area-inset-top)}
   .cf-modal-rodape{flex-direction:column-reverse}
+  .cf .cf-brain-rodape{flex-direction:column}
   .cf-rodape{margin-top:36px;font-size:.74rem}
 }
 @media(prefers-reduced-motion:reduce){.cf *{transition:none!important}}

@@ -13,6 +13,9 @@ export function middleware(req: NextRequest) {
     // da "Tela de Início" sem enviar a senha.
     path.startsWith("/marca/") || path === "/icon.png" || path === "/apple-icon.png"
   ) return NextResponse.next();
+  // Casa Forte Brain: Bearer nas rotas do painel — a própria rota valida o
+  // token (usuarioPainel) e só as liberadas para o Brain aceitam.
+  if (path.startsWith("/api/painel/") && req.headers.get("authorization")?.startsWith("Bearer ")) return NextResponse.next();
   // Sem nenhum usuário configurado o painel NÃO abre (nunca fica público).
   if (!usuariosConfigurados().size) return new NextResponse("Painel sem usuários configurados (DASHBOARD_USERS).", { status: 503 });
   if (usuarioDoHeader(req.headers.get("authorization"))) return NextResponse.next();

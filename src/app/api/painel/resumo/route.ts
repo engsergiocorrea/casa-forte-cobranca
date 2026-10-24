@@ -6,7 +6,7 @@ import { usuarioPainel } from "@/lib/painel/auth";
 
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
-  const a = usuarioPainel(req); if ("erro" in a) return a.erro;
+  const a = usuarioPainel(req, { brain: true }); if ("erro" in a) return a.erro;
   const e = env();
   const d = req.nextUrl.searchParams.get("data");
   const data = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : localDateKey(new Date(), e.TIMEZONE);

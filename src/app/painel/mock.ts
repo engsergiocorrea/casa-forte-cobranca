@@ -63,6 +63,9 @@ export function mockApi(url: string, init?: RequestInit): any {
       { quando: new Date().toISOString(), tipo: "BOLETO", etapa: "D-10", status: "ENVIADA", cliente: "MARIA EXEMPLO", contrato: "UMAR-01", parcela: "3/60", valor: 4193, solicitadoPor: "cron" },
       { quando: new Date().toISOString(), tipo: "CONFIRMACAO", etapa: null, status: "SENT", cliente: null, contrato: "UMAB201", parcela: null, valor: 20842.67, solicitadoPor: "cron" },
     ];
+    case "/api/painel/brain":
+      if (init?.method === "POST") return { resposta: corpo.mensagem === "Confirmo" ? "Operação executada com sucesso." : "Encontrei *2 parcelas* em atraso há mais de 15 dias:\n\n• KALIL EXEMPLO — SANTORINI-008 · 8/60 · 18 dias · R$ 5.000,00 (em pausa)\n• MARIA EXEMPLO — UMAR-01 · 4/60 · 16 dias · R$ 4.193,00\n\nQuer que eu envie a cobrança da Maria? Vou mostrar a mensagem antes.\n\nResponda \"Confirmo\" para executar ou \"Cancelar\"." };
+      return { configurado: true, liberado: true };
     default: return {};
   }
 }

@@ -85,7 +85,7 @@ export async function enviarManual(p: PedidoManual, usuario: string, canal: Cana
     const base = {
       tipo: p.tipo, etapa: "MANUAL", billId: x.billId, installmentId: x.installmentId, dueDate: new Date(`${x.vencimento}T12:00:00Z`),
       customerId: p.customerId, clienteNome: prep.nome, contrato: x.contrato, parcela: x.parcela.parcela, valor: x.saldo,
-      destino: prep.telefone, status: "ENVIANDO", solicitadoPor: `painel:${usuario}`,
+      destino: prep.telefone, status: "ENVIANDO", solicitadoPor: usuario.startsWith("brain:") ? usuario : `painel:${usuario}`,
     };
     try { await db.comunicacao.create({ data: { ...base, dedupeKey, tentativas: 1 } }); meus.push(x); }
     catch (err) {

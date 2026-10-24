@@ -7,7 +7,7 @@ import { enviarManual, prepararEnvioManual, type TipoManual } from "@/lib/painel
 export const dynamic = "force-dynamic";
 const TIPOS: TipoManual[] = ["BOLETO", "LEMBRETE_D0", "COBRANCA"];
 export async function POST(req: NextRequest) {
-  const a = usuarioPainel(req); if ("erro" in a) return a.erro;
+  const a = usuarioPainel(req, { brain: true }); if ("erro" in a) return a.erro;
   const b: any = await req.json().catch(() => ({}));
   const tipo = String(b?.tipo ?? "") as TipoManual;
   const customerId = Number(b?.customerId);

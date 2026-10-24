@@ -72,6 +72,15 @@ const schema = z.object({
   REPORT_RECIPIENTS: z.string().default(""),
   REPORT_AUTO_ENABLED: bool,
   CRON_SECRET: z.string().min(16).default("CHANGE_ME_CHANGE_ME"),
+  // Casa Forte Brain (projeto casaforte-ia). Página: a aba Brain do painel
+  // conversa com BRAIN_URL/web/chat (Bearer BRAIN_WEB_TOKEN), identificando a
+  // pessoa pelo celular de BRAIN_USUARIOS ("sergio:5582999999999,bruna:55…").
+  // Volta: o Brain consulta/envia por /api/painel/* com Bearer BRAIN_API_TOKEN
+  // (só as rotas liberadas; auditoria "brain:<pessoa>"). Vazio = desligado.
+  BRAIN_URL: z.string().default(""),
+  BRAIN_WEB_TOKEN: z.string().default(""),
+  BRAIN_API_TOKEN: z.string().default(""),
+  BRAIN_USUARIOS: z.string().default(""),
 });
 
 let cached: z.infer<typeof schema> | null = null;

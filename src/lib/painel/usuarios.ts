@@ -18,7 +18,7 @@ export function usuariosConfigurados(): Map<string, string> {
 }
 
 // Comparação em tempo constante (não revela a senha pelo tempo de resposta).
-function iguais(a: string, b: string) {
+export function iguais(a: string, b: string) {
   let r = a.length ^ b.length;
   for (let i = 0; i < Math.max(a.length, b.length); i++) r |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   return r === 0;

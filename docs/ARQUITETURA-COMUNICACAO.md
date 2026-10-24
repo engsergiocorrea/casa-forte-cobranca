@@ -208,27 +208,26 @@ allowlist nem REGUA_DRY_RUN), `solicitadoPor = painel:<usuário>`. Nº da parcel
 vem do cache `ParcelaCache` (gravado pela régua; se faltar, 1 consulta bulk).
 A antiga `/consultas` continua disponível.
 
-### 4.8 API para o Casa Forte Brain
+### 4.8 Casa Forte Brain (implementado 24/10/2026, sem WhatsApp)
 
-`POST /api/brain/comandos` — `Authorization: Bearer <BRAIN_API_TOKEN>`
+O Brain (projeto `casaforte-ia`) começa como a **aba Brain do painel** (⌘K ou
+botão "Brain"), sem número de WhatsApp próprio:
 
-```json
-{ "ator": "sergio" | "bruna",
-  "comando": "enviar_boleto" | "enviar_relatorio_cliente" | "enviar_termo_quitacao"
-           | "reenviar_confirmacao" | "status_cliente" | "listar_inadimplentes"
-           | "pausar_cobranca" | "relatorio_dia",
-  "cliente": { "nome"?: "...", "contrato"?: "UMAL-207", "cpf"?: "..." },
-  "parcela"?: "4/60",
-  "confirmar": false }
+```
+painel (pessoa logada) ─POST /api/painel/brain─▶ cobrança ─POST /web/chat (Bearer BRAIN_WEB_TOKEN, celular da pessoa)─▶ Brain
+Brain (Claude + tools cobranca_*) ─GET/POST /api/painel/* (Bearer BRAIN_API_TOKEN + X-Brain-Ator)─▶ cobrança ─▶ Sienge / Evolution
 ```
 
-- **Duas etapas**: `confirmar:false` devolve a **prévia** (quem, qual parcela,
-  texto, anexo) — o Brain mostra ao diretor; só com `confirmar:true` envia.
-- **Desambiguação**: se o nome casar com mais de um cliente (ex.: há dois
-  "Pedro"), responde `ambiguo` com as opções (nome completo + contrato).
-- Comandos de leitura (`status_cliente`, `listar_inadimplentes`) não enviam nada.
-- Cada comando grava `solicitadoPor = brain:<ator>`.
-- Webhook de saída opcional para avisar o Brain de falhas/entregas.
+- A pessoa do painel vira usuário do Brain pelo celular de `BRAIN_USUARIOS`
+  (`sergio:55829…,bruna:55…`); lá valem papel, permissões e auditoria dela.
+- O Brain usa as **mesmas rotas do painel**; só `clientes`, `cliente`,
+  `inadimplentes`, `resumo` e `envio` aceitam o token dele (`usuarioPainel(req, { brain: true })`).
+- Envio: a tool `cobranca_enviar` (permissão `collections.send`) mostra a
+  prévia exata e só envia depois de "Confirmo"; o envio é o mesmo do painel
+  (revalida no Sienge, 1x por parcela/tipo/dia, travas-mestras), com
+  `solicitadoPor = brain:<pessoa>`.
+- Desambiguação (dois "Pedro"): o Brain busca e pergunta qual.
+- Depois: o mesmo Brain no WhatsApp (número próprio), sem mudar nada aqui.
 
 ### 4.9 Termo de quitação
 
@@ -290,7 +289,9 @@ sai no primeiro dia (comportamento "assim que gerado").
 | `COBRANCA_ETAPAS` | `1,7,15` |
 | `BOLETO_DIAS_ANTES` | `10` |
 | `REPORT_RECIPIENTS` | telefones de Sergio e Bruna (E.164, vírgula) |
-| `BRAIN_API_TOKEN` | token do Casa Forte Brain |
+| `BRAIN_URL`, `BRAIN_WEB_TOKEN` | aba Brain do painel → Brain (`/web/chat`) |
+| `BRAIN_API_TOKEN` | Brain → rotas do painel (o mesmo valor de `COBRANCA_API_TOKEN` no Brain) |
+| `BRAIN_USUARIOS` | `usuario:celular` de quem pode usar o Brain pelo painel |
 | `WHATSAPP_PROVIDER` | `evolution` (hoje) / `meta` |
 
 ## 8. Checklist da troca para a Meta

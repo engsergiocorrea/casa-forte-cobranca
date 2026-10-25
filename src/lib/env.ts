@@ -77,10 +77,12 @@ const schema = z.object({
   // pessoa pelo celular de BRAIN_USUARIOS ("sergio:5582999999999,bruna:55…").
   // Volta: o Brain consulta/envia por /api/painel/* com Bearer BRAIN_API_TOKEN
   // (só as rotas liberadas; auditoria "brain:<pessoa>"). Vazio = desligado.
-  BRAIN_URL: z.string().default(""),
-  BRAIN_WEB_TOKEN: z.string().default(""),
-  BRAIN_API_TOKEN: z.string().default(""),
-  BRAIN_USUARIOS: z.string().default(""),
+  // trim: "openssl rand -hex 32 | pbcopy" copia com quebra de linha no fim, e
+  // o Railway guarda assim — o header HTTP chega sem ela e o token não batia (401).
+  BRAIN_URL: z.string().default("").transform((v) => v.trim()),
+  BRAIN_WEB_TOKEN: z.string().default("").transform((v) => v.trim()),
+  BRAIN_API_TOKEN: z.string().default("").transform((v) => v.trim()),
+  BRAIN_USUARIOS: z.string().default("").transform((v) => v.trim()),
 });
 
 let cached: z.infer<typeof schema> | null = null;

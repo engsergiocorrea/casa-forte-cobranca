@@ -5,7 +5,7 @@ import { usuarioPainel } from "@/lib/painel/auth";
 // Aba Brain do painel → Casa Forte Brain (casaforte-ia, POST /web/chat).
 // A pessoa logada no painel é identificada no Brain pelo celular cadastrado
 // em BRAIN_USUARIOS; lá valem as permissões e a confirmação ("Confirmo") dela.
-//   GET  → { configurado, liberado }   (a página decide o que mostrar)
+//   GET  → { configurado, liberado, usuario }   (a página decide o que mostrar)
 //   POST { mensagem } → { resposta }
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ const configurado = () => Boolean(env().BRAIN_URL && env().BRAIN_WEB_TOKEN);
 
 export async function GET(req: NextRequest) {
   const a = usuarioPainel(req); if ("erro" in a) return a.erro;
-  return NextResponse.json({ configurado: configurado(), liberado: Boolean(celularDo(a.usuario)) });
+  return NextResponse.json({ configurado: configurado(), liberado: Boolean(celularDo(a.usuario)), usuario: a.usuario });
 }
 
 export async function POST(req: NextRequest) {

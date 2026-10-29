@@ -93,6 +93,34 @@ describe("régua v2 — canal Evolution", () => {
     expect(d.sendDocument).toHaveBeenCalledWith(expect.objectContaining({ mediaUrl: "https://x/b.pdf", fileName: "boleto.pdf" }));
     expect(d.sendText).not.toHaveBeenCalled();
   });
+  const comBoleto = (n: number) => ({ ...msg, itens: Array.from({ length: n }, (_, k) => ({ ...msg.itens[0], parcela: `${k + 1}/60`, boletoUrl: `https://sienge/b${k}` })) });
+  it("1 parcela com boleto → PDF baixado vai como documento, com a mensagem de legenda", async () => {
+    const d = { ...deps(), baixarPdf: vi.fn().mockResolvedValue("JVBERi0x") };
+    const r = await criarCanalEvolution(d).enviar(comBoleto(1), "+5582999999999");
+    expect(r.sucesso).toBe(true);
+    expect(d.baixarPdf).toHaveBeenCalledWith("https://sienge/b0");
+    expect(d.sendDocument).toHaveBeenCalledWith(expect.objectContaining({ mediaUrl: "JVBERi0x", fileName: "Boleto Casa Forte - parcela 1-60.pdf", caption: expect.stringContaining("Boleto disponível") }));
+    expect(d.sendText).not.toHaveBeenCalled();
+  });
+  it("PDF não baixou → sai só o texto com o link (sem duplicar)", async () => {
+    const d = { ...deps(), baixarPdf: vi.fn().mockResolvedValue(null) };
+    await criarCanalEvolution(d).enviar(comBoleto(1), "+5582999999999");
+    expect(d.sendText).toHaveBeenCalledOnce();
+    expect(d.sendDocument).not.toHaveBeenCalled();
+  });
+  it("2 parcelas → texto e depois um PDF por parcela", async () => {
+    const d = { ...deps(), baixarPdf: vi.fn().mockResolvedValue("JVBERi0x") };
+    await criarCanalEvolution(d).enviar(comBoleto(2), "+5582999999999");
+    expect(d.sendText).toHaveBeenCalledOnce();
+    expect(d.sendDocument).toHaveBeenCalledTimes(2);
+    expect(d.sendDocument.mock.calls[1][0]).toMatchObject({ fileName: "Boleto Casa Forte - parcela 2-60.pdf" });
+  });
+  it("texto falhou → não manda os PDFs", async () => {
+    const d = { ...deps(), baixarPdf: vi.fn().mockResolvedValue("JVBERi0x") };
+    d.sendText.mockResolvedValue({ success: false, messageId: null, error: "Evolution status 500" });
+    await criarCanalEvolution(d).enviar(comBoleto(2), "+5582999999999");
+    expect(d.sendDocument).not.toHaveBeenCalled();
+  });
   it("timeout/conexão → incerto (nunca reenviar sozinho)", async () => {
     const d = deps(); d.sendText.mockResolvedValue({ success: false, messageId: null, error: "Conexão Evolution: timeout" });
     expect(await criarCanalEvolution(d).enviar(msg, "+5582999999999")).toMatchObject({ sucesso: false, incerto: true });

@@ -298,6 +298,40 @@ function Clientes({ abrirId }: { abrirId: number | null }) {
   </>;
 }
 
+// Histórico de pagamentos do título (baixas do Sienge desde o início do
+// contrato, guardadas na nossa base). Abre sob demanda; "Atualizar do Sienge"
+// gasta 1 das 20 consultas bulk do dia.
+function HistoricoPagamentos({ billId }: { billId: number }) {
+  const [aberto, setAberto] = useState(false);
+  const [h, setH] = useState<any>(null); const [erro, setErro] = useState(""); const [atualizando, setAtualizando] = useState(false);
+  useEffect(() => { if (aberto && !h) api(`/api/painel/historico-pagamentos?billId=${billId}`).then(setH).catch((e) => setErro(e.message)); }, [aberto, h, billId]);
+  const atualizar = async () => { setAtualizando(true); setErro(""); try { setH(await api("/api/painel/historico-pagamentos", { method: "POST", body: JSON.stringify({ billId }) })); } catch (e) { setErro((e as Error).message); } finally { setAtualizando(false); } };
+  return <div className="cf-hist">
+    <button className="cf-hist-tog" onClick={() => setAberto((x) => !x)} aria-expanded={aberto}><Icone n="historico" t={16} /> Histórico de pagamentos <span aria-hidden="true">{aberto ? "▴" : "▾"}</span></button>
+    {aberto && <div className="cf-hist-in">
+      {erro && <div className="cf-banner erro">{erro}</div>}
+      {!h && !erro && <p className="muted">Carregando…</p>}
+      {h && <>
+        <div className="cf-hist-res">
+          <span><b>{h.resumo.pagamentos}</b> pagamentos</span>
+          <span><b>{brl(h.resumo.totalPago)}</b> pagos</span>
+          <span><b>{h.resumo.emDia}</b> em dia</span>
+          <span className={h.resumo.comAtraso ? "al" : ""}><b>{h.resumo.comAtraso}</b> com atraso{h.resumo.comAtraso ? ` · média ${h.resumo.atrasoMedio} d` : ""}</span>
+          {h.resumo.jurosMulta > 0 && <span><b>{brl(h.resumo.jurosMulta)}</b> juros/multa</span>}
+        </div>
+        <Tabela cols={[{ t: "Parcela", destaque: true }, { t: "Vencimento" }, { t: "Pago em" }, { t: "Valor pago", num: true }, { t: "Juros/multa", num: true }, { t: "Situação" }]}
+          vazio={h.sincronizadoEm ? "Nenhum pagamento registrado no Sienge." : "Histórico ainda não sincronizado. Clique em “Atualizar do Sienge”."}
+          linhas={h.pagamentos.map((p: any, i: number) => ({ k: `${p.installmentId}-${i}`, c: [
+            p.parcela ? `Parcela ${p.parcela}` : `#${p.installmentId}`, br(p.vencimento), br(p.pagoEm), brl(p.valorPago), p.jurosMulta ? brl(p.jurosMulta) : "—",
+            !p.real ? <span className="cf-st">{p.operacao || "Baixa"}</span> : p.diasAtraso > 0 ? <span className="cf-st al">{p.diasAtraso} d de atraso</span> : <span className="cf-st ok">Em dia</span>,
+          ] }))} />
+        <div className="cf-hist-rod"><span className="muted">{h.sincronizadoEm ? `Atualizado do Sienge em ${quando(h.sincronizadoEm)}` : "Ainda não sincronizado"}</span>
+          <button className="bt leve mini" disabled={atualizando} onClick={atualizar}>{atualizando ? "Atualizando…" : "Atualizar do Sienge"}</button></div>
+      </>}
+    </div>}
+  </div>;
+}
+
 function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void }) {
   const [d, setD] = useState<any>(null); const [erro, setErro] = useState("");
   const [marcadas, setMarcadas] = useState<Record<string, boolean>>({});
@@ -338,6 +372,7 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
               p.paga ? <span className="cf-st ok">Paga</span> : p.diasAteVencimento < 0 ? <span className="cf-st er">{-p.diasAteVencimento} d em atraso</span> : p.diasAteVencimento === 0 ? <span className="cf-st al">Vence hoje</span> : <span className="cf-st">em {p.diasAteVencimento} d</span>,
             ],
           }))} />
+        {c.billId && <HistoricoPagamentos billId={c.billId} />}
       </section>;
     })}
     <section className="cf-box"><h2>Mensagens</h2>

@@ -63,6 +63,14 @@ export function mockApi(url: string, init?: RequestInit): any {
       { quando: new Date().toISOString(), tipo: "BOLETO", etapa: "D-10", status: "ENVIADA", cliente: "MARIA EXEMPLO", contrato: "UMAR-01", parcela: "3/60", valor: 4193, solicitadoPor: "cron" },
       { quando: new Date().toISOString(), tipo: "CONFIRMACAO", etapa: null, status: "SENT", cliente: null, contrato: "UMAB201", parcela: null, valor: 20842.67, solicitadoPor: "cron" },
     ];
+    case "/api/painel/historico-pagamentos": return {
+      sincronizadoEm: new Date().toISOString(),
+      resumo: { pagamentos: 3, totalPago: 12620.5, jurosMulta: 41.5, emDia: 2, comAtraso: 1, atrasoMedio: 6, primeiro: d(-90), ultimo: d(-30) },
+      pagamentos: [
+        { installmentId: 4, parcela: "3/60", vencimento: d(-35), pagoEm: d(-29), operacao: "Recebimento", real: true, valorPago: 4234.5, jurosMulta: 41.5, desconto: 0, diasAtraso: 6 },
+        { installmentId: 3, parcela: "2/60", vencimento: d(-65), pagoEm: d(-66), operacao: "Recebimento", real: true, valorPago: 4193, jurosMulta: 0, desconto: 0, diasAtraso: 0 },
+        { installmentId: 2, parcela: "1/60", vencimento: d(-95), pagoEm: d(-95), operacao: "Recebimento", real: true, valorPago: 4193, jurosMulta: 0, desconto: 0, diasAtraso: 0 },
+      ] };
     case "/api/painel/brain":
       if (init?.method === "POST") return { resposta: corpo.mensagem === "Confirmo" ? "Operação executada com sucesso." : "Encontrei *2 parcelas* em atraso há mais de 15 dias:\n\n• KALIL EXEMPLO — SANTORINI-008 · 8/60 · 18 dias · R$ 5.000,00 (em pausa)\n• MARIA EXEMPLO — UMAR-01 · 4/60 · 16 dias · R$ 4.193,00\n\nQuer que eu envie a cobrança da Maria? Vou mostrar a mensagem antes.\n\nResponda \"Confirmo\" para executar ou \"Cancelar\"." };
       return { configurado: true, liberado: true, usuario: "sergio" };

@@ -353,3 +353,36 @@ model ParcelaCache {
   @@id([billId, installmentId])
   @@index([clientId])
 }
+
+// Histórico de pagamentos (baixas) vindo do Sienge — bulk income/by-bills traz
+// TODOS os recebimentos de cada título desde o início do contrato. Uma linha
+// por baixa. Atualizado pela sincronização (1 chamada bulk para todos os
+// títulos) e, sem custo extra, pelas consultas que a régua e a confirmação já fazem.
+model PagamentoHistorico {
+  id            String   @id @default(cuid())
+  billId        Int
+  installmentId Int
+  seq           Int      // ordem da baixa dentro da parcela
+  clientId      Int?
+  parcela       String   // "4/60"
+  vencimento    String   // yyyy-mm-dd
+  pagoEm        String   // yyyy-mm-dd
+  operacao      String   // "Recebimento", "Adiantamento", outras baixas
+  real          Boolean  // pagamento de verdade (recebimento/adiantamento), não baixa administrativa
+  bruto         Decimal  @db.Decimal(18, 2)
+  desconto      Decimal  @db.Decimal(18, 2)
+  juros         Decimal  @db.Decimal(18, 2)
+  multa         Decimal  @db.Decimal(18, 2)
+  liquido       Decimal  @db.Decimal(18, 2)
+  atualizadoEm  DateTime @updatedAt
+
+  @@unique([billId, installmentId, seq])
+  @@index([billId])
+  @@index([clientId])
+}
+
+// Quando cada título teve o histórico completo sincronizado com o Sienge.
+model HistoricoSync {
+  billId         Int      @id
+  sincronizadoEm DateTime
+}

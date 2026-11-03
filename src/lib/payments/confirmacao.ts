@@ -1,3 +1,4 @@
+import { salvarHistorico } from "../painel/historico";
 import { Prisma } from "@prisma/client";
 import { db } from "../db";
 import { env } from "../env";
@@ -94,7 +95,12 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
   // Se falhar, a geração do PDF falha e a confirmação sai só em texto.
   let reciboDados: Promise<Map<string, NormalizedIncomeInstallment>> | null = null;
   const dadosRecibo = () => (reciboDados ??= sienge.listIncomeByBills([...new Set(pendentes.map((r) => r.billId))])
-    .then((raw) => new Map(normalizeIncomeInstallments(raw).map((x) => [`${x.billId}/${x.installmentId}`, x]))));
+    .then(async (raw) => {
+      const ps = normalizeIncomeInstallments(raw);
+      // Aproveita a mesma resposta para o histórico de pagamentos (sem chamada extra).
+      await salvarHistorico(ps).catch(() => null);
+      return new Map(ps.map((x) => [`${x.billId}/${x.installmentId}`, x]));
+    }));
 
   const parcelasCache = new Map<number, NormalizedInstallmentRow[]>();
   const tituloCache = new Map<number, any>();

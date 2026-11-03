@@ -10,6 +10,7 @@ import { renderTexto } from "../canal/modelos";
 import { agruparPorClienteTipo, janelaRegua, planejarRegua, type ItemPlano, type TipoRegua } from "./planejar";
 import { aplicarPausas } from "./pausas";
 import { salvarParcelas } from "../painel/parcelas";
+import { salvarHistorico } from "../painel/historico";
 
 // Executor da régua v2: 1 chamada bulk (income por vencimento) → plano →
 // revalidação no Sienge (saldo > 0) → boleto/telefone → reivindica no outbox
@@ -68,7 +69,7 @@ export async function runRegua(opts: Opcoes = {}): Promise<ResumoRegua> {
   s.janela = janelaRegua(hoje, cfg);
   const parcelas = normalizeIncomeInstallments(await sienge.listIncomeByDueDate(s.janela.inicio, s.janela.fim));
   s.parcelasLidas = parcelas.length;
-  if (!preview) { try { await salvarParcelas(parcelas); } catch { /* cache é opcional */ } }
+  if (!preview) { try { await salvarParcelas(parcelas); await salvarHistorico(parcelas); } catch { /* cache é opcional */ } }
 
   // 2) Plano do dia (só tipos ligados), menos quem está em pausa (PausaRegua).
   const bruto = planejarRegua(parcelas, hoje, cfg).filter((i) => ligados.includes(i.tipo));

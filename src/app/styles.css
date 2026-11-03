@@ -249,3 +249,13 @@ button{padding:10px 16px;border-radius:10px;border:1px solid #e5e5df;background:
 @keyframes bxDesce{to{transform:translateY(40px);opacity:0}}
 @media(prefers-reduced-motion:reduce){.cf-bx,.cf-bx-in,.cf-bx-robo,.cf-bx-linha,.cf-bx-conf{animation-duration:.01s!important}.cf-bx-msg.pensando span{animation:none;color:var(--bx-sec)}}
 @media(prefers-reduced-transparency:reduce){.cf-bx{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,10,16,.7)}.cf-bx-in{backdrop-filter:none;-webkit-backdrop-filter:none;background:#14161F}}
+
+/* Histórico de pagamentos (ficha do cliente) */
+.cf-hist{margin-top:14px;border-top:1px solid var(--borda);padding-top:10px}
+.cf-hist-tog{display:inline-flex;align-items:center;gap:8px;background:none;border:0;padding:6px 0;font:inherit;font-weight:700;font-size:.9rem;color:var(--texto);cursor:pointer;min-height:40px}
+.cf-hist-tog span{color:var(--suave)}
+.cf-hist-in{margin-top:6px}
+.cf-hist-res{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.cf-hist-res span{background:var(--faixa);border:1px solid var(--borda);border-radius:999px;padding:6px 12px;font-size:.82rem;color:var(--sec)}
+.cf-hist-res span b{color:var(--texto)}.cf-hist-res span.al b{color:var(--vermelho)}
+.cf-hist-rod{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:.8rem}

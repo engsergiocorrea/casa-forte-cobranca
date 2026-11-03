@@ -24,7 +24,11 @@ export async function garantirCache(billIds: number[]): Promise<{ consultouSieng
   const comCache = new Set((await db.parcelaCache.findMany({ where: { billId: { in: unicos } }, select: { billId: true }, distinct: ["billId"] })).map((x) => x.billId));
   const faltam = unicos.filter((b) => !comCache.has(b));
   if (!faltam.length) return { consultouSienge: false };
-  await salvarParcelas(normalizeIncomeInstallments(await sienge.listIncomeByBills(faltam)));
+  const ps = normalizeIncomeInstallments(await sienge.listIncomeByBills(faltam));
+  await salvarParcelas(ps);
+  // A resposta traz o título inteiro: grava o histórico de pagamentos junto.
+  const { salvarHistorico } = await import("./historico");
+  await salvarHistorico(ps).catch(() => null);
   return { consultouSienge: true };
 }
 

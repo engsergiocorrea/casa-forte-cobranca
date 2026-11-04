@@ -6,6 +6,7 @@ import { normalizeCustomerPhones, normalizeInstallmentsList, normalizePaymentSli
 import { localDateKey } from "../collection/date";
 import { canalAtual, type CanalWhatsApp, type ItemParcela, type MensagemPadrao, type ModeloMensagem } from "../canal";
 import { renderTexto } from "../canal/modelos";
+import { valorDaLinha } from "../boleto/linha";
 import { cacheDe, garantirCache } from "./parcelas";
 import { contratosDoCliente } from "./sienge-cache";
 
@@ -52,7 +53,7 @@ export async function prepararEnvioManual(p: PedidoManual) {
     prontos.push({
       billId: it.billId, installmentId: it.installmentId, saldo: atual.balanceDue, vencimento: venc,
       contrato: c ? c.documento.split("/").pop()!.trim() : (k?.numero ?? String(it.billId)),
-      parcela: { parcela: c?.parcela ?? `vencimento ${br(venc)}`, imovel: imovel || (k?.numero ?? ""), vencimento: br(venc), valor: fmtBRL(atual.balanceDue), boletoUrl: boleto.url, linhaDigitavel: boleto.linhaDigitavel },
+      parcela: { parcela: c?.parcela ?? `vencimento ${br(venc)}`, imovel: imovel || (k?.numero ?? ""), vencimento: br(venc), valor: fmtBRL(valorDaLinha(boleto.linhaDigitavel) ?? atual.balanceDue), boletoUrl: boleto.url, linhaDigitavel: boleto.linhaDigitavel },
     });
   }
 

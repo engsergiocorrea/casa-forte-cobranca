@@ -7,6 +7,7 @@ import { localDateKey } from "../collection/date";
 import { canSendTo } from "../safety";
 import { canalAtual, type CanalWhatsApp, type ItemParcela, type MensagemPadrao, type ModeloMensagem } from "../canal";
 import { renderTexto } from "../canal/modelos";
+import { valorDaLinha } from "../boleto/linha";
 import { agruparPorClienteTipo, janelaRegua, planejarRegua, type ItemPlano, type TipoRegua } from "./planejar";
 import { aplicarPausas } from "./pausas";
 import { salvarParcelas } from "../painel/parcelas";
@@ -120,7 +121,7 @@ export async function runRegua(opts: Opcoes = {}): Promise<ResumoRegua> {
       if (!atual.generatedBoleto || (!boleto.url && !boleto.linhaDigitavel)) { aguardandoBoleto.push(it); continue; }
       prontos.push({
         item: it, saldo: atual.balanceDue,
-        parcela: { parcela: it.parcela, imovel: it.imovel, vencimento: brData(it.vencimento), valor: fmtBRL(atual.balanceDue), boletoUrl: boleto.url, linhaDigitavel: boleto.linhaDigitavel },
+        parcela: { parcela: it.parcela, imovel: it.imovel, vencimento: brData(it.vencimento), valor: fmtBRL(valorDaLinha(boleto.linhaDigitavel) ?? atual.balanceDue), boletoUrl: boleto.url, linhaDigitavel: boleto.linhaDigitavel },
       });
     }
 

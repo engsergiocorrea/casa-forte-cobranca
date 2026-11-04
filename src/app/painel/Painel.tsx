@@ -8,7 +8,7 @@ import { Icone } from "./icones";
 // Pensado para celular (iPhone/Android, Safari/Chrome): tabelas viram cartões,
 // ações ficam numa barra fixa no rodapé, campos com 16px (sem zoom no iOS).
 
-type Aba = "hoje" | "clientes" | "inadimplencia" | "pausas" | "regua" | "historico";
+type Aba = "hoje" | "clientes" | "inadimplencia" | "fluxo" | "pausas" | "regua" | "historico";
 type TipoEnvio = "BOLETO" | "LEMBRETE_D0" | "COBRANCA";
 
 const brl = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
@@ -551,8 +551,101 @@ function Historico() {
   </>;
 }
 
+// ---------- Fluxo de caixa ----------
+// Previsão de ENTRADAS mês a mês (contratos de venda), por obra. A receber =
+// saldo ao vivo do Sienge com a correção de hoje (= valor do boleto);
+// recebido = pagamentos registrados. Vencido em aberto fica à parte.
+const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const nomeMes = (ym: string) => `${MESES_CURTOS[Number(ym.slice(5, 7)) - 1]}/${ym.slice(2, 4)}`;
+const COR_RECEBIDO = "#2B59C3", COR_A_RECEBER = "#E8390E";
+
+function KpiValor({ i, v, rot, tom }: { i: string; v: number; rot: string; tom?: "ok" | "alerta" }) {
+  return <div className={`cf-card ${tom ?? ""}`}><span className="cf-card-ic"><Icone n={i} t={18} /></span><b className="cf-kpi-brl" title={brl(v)}>{(Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</b><span className="cf-card-rot">{rot}</span></div>;
+}
+
+function GraficoFluxo({ meses, mesAtual }: { meses: { mes: string; recebido: number; aReceber: number }[]; mesAtual: string }) {
+  const [foco, setFoco] = useState<number | null>(null);
+  const rolo = useRef<HTMLDivElement>(null);
+  // No celular o gráfico rola na horizontal: começa mostrando o mês atual.
+  useEffect(() => { const i = meses.findIndex((m) => m.mes === mesAtual); if (rolo.current && i > 0) rolo.current.scrollLeft = Math.max(0, i * 34 - 60); }, [meses, mesAtual]);
+  const max = Math.max(1, ...meses.map((m) => Math.max(m.recebido, m.aReceber)));
+  const H = 180, bw = 11, gap = 2, grupo = 34, W = meses.length * grupo + 8;
+  const y = (v: number) => H - Math.max(v > 0 ? 3 : 0, (v / max) * (H - 8));
+  const f = foco != null ? meses[foco] : null;
+  return <div className="cf-graf">
+    <div className="cf-graf-leg"><span><i style={{ background: COR_RECEBIDO }} /> Recebido</span><span><i style={{ background: COR_A_RECEBER }} /> A receber</span>
+      <span className="cf-graf-dica" aria-live="polite">{f ? `${nomeMes(f.mes)} · recebido ${brl(f.recebido)} · a receber ${brl(f.aReceber)}` : "Passe o dedo ou o mouse sobre um mês"}</span></div>
+    <div className="cf-graf-rolo" ref={rolo}><svg viewBox={`0 0 ${W} ${H + 22}`} width={W} height={H + 22} role="img" aria-label="Recebido e a receber por mês">
+      <line x1="0" x2={W} y1={H} y2={H} stroke="var(--borda)" />
+      {meses.map((m, i) => {
+        const x = 4 + i * grupo, atual = m.mes === mesAtual;
+        return <g key={m.mes} onMouseEnter={() => setFoco(i)} onMouseLeave={() => setFoco(null)} onClick={() => setFoco(i)} style={{ cursor: "pointer" }}>
+          <rect x={x - 2} y="0" width={grupo - 2} height={H + 20} fill={foco === i ? "rgba(16,24,40,.05)" : atual ? "rgba(232,57,14,.05)" : "transparent"} rx="6" />
+          {m.recebido > 0 && <rect x={x + 3} y={y(m.recebido)} width={bw} height={H - y(m.recebido)} rx="3" fill={COR_RECEBIDO} />}
+          {m.aReceber > 0 && <rect x={x + 3 + bw + gap} y={y(m.aReceber)} width={bw} height={H - y(m.aReceber)} rx="3" fill={COR_A_RECEBER} />}
+          <text x={x + grupo / 2 - 2} y={H + 15} textAnchor="middle" fontSize="9.5" fill={atual ? "var(--texto)" : "var(--suave)"} fontWeight={atual ? 700 : 400}>{nomeMes(m.mes)}</text>
+        </g>;
+      })}
+    </svg></div>
+  </div>;
+}
+
+function FluxoCaixa() {
+  const [f, setF] = useState<any>(null); const [erro, setErro] = useState(""); const [obra, setObra] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<"" | "recalcular" | "sincronizar">("");
+  const carregar = useCallback((atualizar = false) => { setErro(""); return api(`/api/painel/fluxo${atualizar ? "?atualizar=1" : ""}`).then(setF).catch((e) => setErro(e.message)); }, []);
+  useEffect(() => { carregar(); }, [carregar]);
+  const recalcular = async () => { setOcupado("recalcular"); await carregar(true); setOcupado(""); };
+  const sincronizar = async () => {
+    if (!confirm("Atualizar pagamentos e correção de todos os contratos no Sienge? Usa 2 das 20 consultas diárias.")) return;
+    setOcupado("sincronizar"); setErro("");
+    try { setF(await api("/api/painel/fluxo", { method: "POST", body: JSON.stringify({ acao: "sincronizar" }) })); } catch (e) { setErro((e as Error).message); } finally { setOcupado(""); }
+  };
+  const visao = useMemo(() => {
+    if (!f) return null;
+    if (!obra) return { meses: f.meses, totais: f.totais };
+    const e = f.empreendimentos.find((x: any) => x.nome === obra);
+    return { meses: f.meses.map((m: any) => ({ mes: m.mes, recebido: m.recebidoPorEmpreendimento?.[obra] ?? 0, aReceber: m.porEmpreendimento?.[obra] ?? 0 })),
+      totais: { aReceber: e?.total ?? 0, vencido: e?.vencido ?? 0, parcelasVencidas: e?.parcelasVencidas ?? 0, proximos3: e?.proximos3 ?? 0, proximos12: e?.proximos12 ?? 0, recebido6: e?.recebido6 ?? 0 } };
+  }, [f, obra]);
+  const mesAtual = f?.hoje?.slice(0, 7) ?? "";
+  return <>
+    <Cabecalho titulo="Fluxo de caixa" sub={f ? `Previsão de entradas mês a mês · posição de ${br(f.hoje)}` : "Previsão de entradas mês a mês"}
+      extra={<div className="cf-fluxo-bts"><a className="bt leve mini" href="/api/painel/fluxo/pdf" download><Icone n="pdf" t={16} /> Relatório (PDF)</a><button className="bt leve mini" disabled={!!ocupado} onClick={recalcular}><Icone n="atualizar" t={16} /> {ocupado === "recalcular" ? "Recalculando…" : "Recalcular"}</button></div>} />
+    {erro && <div className="cf-banner erro">{erro}</div>}
+    {!f && !erro && <p className="muted">Lendo os saldos no Sienge…</p>}
+    {f && visao && <>
+      {f.falhas > 0 && <div className="cf-banner erro">{f.falhas} contrato(s) não puderam ser lidos no Sienge agora. Clique em Recalcular.</div>}
+      <div className="cf-seg cf-seg-obras" role="tablist" aria-label="Obra">
+        <button role="tab" aria-selected={!obra} className={!obra ? "ativo" : ""} onClick={() => setObra(null)}>Todas as obras</button>
+        {f.empreendimentos.map((e: any) => <button key={e.nome} role="tab" aria-selected={obra === e.nome} className={obra === e.nome ? "ativo" : ""} onClick={() => setObra(e.nome)}>{e.nome}</button>)}
+      </div>
+      <div className="cf-cards cf-cards-5">
+        <KpiValor i="fluxo" v={visao.totais.proximos3} rot="Próximos 3 meses" />
+        <KpiValor i="fluxo" v={visao.totais.proximos12} rot="Próximos 12 meses" />
+        <KpiValor i="boleto" v={visao.totais.aReceber} rot="A receber (total)" />
+        <KpiValor i="inadimplencia" v={visao.totais.vencido} rot={`Vencido em aberto${visao.totais.parcelasVencidas ? ` · ${visao.totais.parcelasVencidas} parcelas` : ""}`} tom={visao.totais.vencido > 0 ? "alerta" : undefined} />
+        <KpiValor i="confirmacao" v={visao.totais.recebido6} rot="Recebido · últimos 6 meses" tom="ok" />
+      </div>
+      <section className="cf-box"><h2>Mês a mês{obra ? ` · ${obra}` : ""}</h2>
+        <GraficoFluxo meses={visao.meses} mesAtual={mesAtual} />
+        <Tabela cols={[{ t: "Mês", destaque: true }, { t: "Recebido", num: true }, { t: "A receber", num: true }, { t: "Total do mês", num: true }]} linhas={[
+          ...(visao.totais.vencido > 0 ? [{ k: "venc", c: [<b key="v">Vencido em aberto (antes de hoje)</b>, "—", <span key="a" className="cf-st er">{brl(visao.totais.vencido)}</span>, brl(visao.totais.vencido)] }] : []),
+          ...visao.meses.map((m: any) => ({ k: m.mes, marcada: m.mes === mesAtual, c: [`${nomeMes(m.mes)}${m.mes === mesAtual ? " (mês atual)" : ""}`, m.recebido ? brl(m.recebido) : "—", m.aReceber ? brl(m.aReceber) : "—", brl(m.recebido + m.aReceber)] })),
+        ]} />
+      </section>
+      {!obra && <section className="cf-box"><h2>Por obra</h2>
+        <Tabela cols={[{ t: "Obra", destaque: true }, { t: "Vencido", num: true }, { t: "Próx. 3 meses", num: true }, { t: "Próx. 12 meses", num: true }, { t: "Total a receber", num: true }, { t: "Recebido 6 meses", num: true }]}
+          linhas={f.empreendimentos.map((e: any) => ({ k: e.nome, c: [<button key="o" className="cf-link" onClick={() => setObra(e.nome)}>{e.nome}</button>, e.vencido ? <span key="v" className="cf-st er">{brl(e.vencido)}</span> : "—", brl(e.proximos3), brl(e.proximos12), brl(e.total), brl(e.recebido6)] }))} />
+      </section>}
+      <div className="cf-hist-rod"><span className="muted">Saldos lidos no Sienge em {quando(f.geradoEm)}, com a correção monetária de hoje (= valor do boleto; correções futuras não entram). Pagamentos atualizados em {f.historicoAtualizadoEm ? quando(f.historicoAtualizadoEm) : "—"}.</span>
+        <button className="bt leve mini" disabled={!!ocupado} onClick={sincronizar}>{ocupado === "sincronizar" ? "Atualizando…" : "Atualizar pagamentos do Sienge"}</button></div>
+    </>}
+  </>;
+}
+
 // ---------- Shell ----------
-const ABAS: [Aba, string, string][] = [["hoje", "Hoje", "hoje"], ["clientes", "Clientes", "clientes"], ["inadimplencia", "Inadimplência", "inadimplencia"], ["pausas", "Pausas", "pausas"], ["regua", "Régua", "regua"], ["historico", "Histórico", "historico"]];
+const ABAS: [Aba, string, string][] = [["hoje", "Hoje", "hoje"], ["clientes", "Clientes", "clientes"], ["inadimplencia", "Inadimplência", "inadimplencia"], ["fluxo", "Fluxo de caixa", "fluxo"], ["pausas", "Pausas", "pausas"], ["regua", "Régua", "regua"], ["historico", "Histórico", "historico"]];
 
 export default function Painel() {
   const [aba, setAba] = useState<Aba>("hoje");
@@ -593,6 +686,7 @@ export default function Painel() {
         {aba === "pausas" && <Pausas />}
         {aba === "regua" && <Regua />}
         {aba === "historico" && <Historico />}
+        {aba === "fluxo" && <FluxoCaixa />}
         <Rodape />
       </main>
     </div>

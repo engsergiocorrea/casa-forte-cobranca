@@ -73,6 +73,20 @@ export function mockApi(url: string, init?: RequestInit): any {
         { installmentId: 3, parcela: "2/60", vencimento: d(-65), pagoEm: d(-66), operacao: "Recebimento", real: true, valorPago: 4193, jurosMulta: 0, desconto: 0, diasAtraso: 0 },
         { installmentId: 2, parcela: "1/60", vencimento: d(-95), pagoEm: d(-95), operacao: "Recebimento", real: true, valorPago: 4193, jurosMulta: 0, desconto: 0, diasAtraso: 0 },
       ] };
+    case "/api/painel/fluxo": {
+      const ym = (n: number) => { const x = new Date(); x.setUTCDate(1); x.setUTCMonth(x.getUTCMonth() + n); return x.toISOString().slice(0, 7); };
+      const meses = Array.from({ length: 19 }, (_, k) => k - 6).map((n) => {
+        const u = n <= 0 ? 60000 + ((n * 7919) % 20000) : 0, s = n >= 0 ? 90000 + ((n * 3571) % 40000) : 0;
+        return { mes: ym(n), recebido: u, aReceber: s, parcelasAReceber: n >= 0 ? 20 : 0, parcelasRecebidas: n <= 0 ? 15 : 0,
+          porEmpreendimento: { "UMÁ MILAGRES": s * 0.7, "SANTORINI": s * 0.3 }, recebidoPorEmpreendimento: { "UMÁ MILAGRES": u * 0.65, "SANTORINI": u * 0.35 } };
+      });
+      return { geradoEm: new Date().toISOString(), hoje, historicoAtualizadoEm: new Date().toISOString(), titulos: 42, falhas: 0,
+        totais: { aReceber: 2150000, vencido: 64000, parcelasVencidas: 9, proximos3: 310000, proximos12: 1290000, recebido6: 395000, aReceberSemCorrecao: 2100000 },
+        meses, empreendimentos: [
+          { nome: "UMÁ MILAGRES", vencido: 41000, parcelasVencidas: 6, proximos3: 217000, proximos12: 903000, total: 1505000, recebido6: 256000 },
+          { nome: "SANTORINI", vencido: 23000, parcelasVencidas: 3, proximos3: 93000, proximos12: 387000, total: 645000, recebido6: 139000 },
+        ], vencidoPorEmpreendimento: {} };
+    }
     case "/api/painel/brain":
       if (init?.method === "POST") return { resposta: corpo.mensagem === "Confirmo" ? "Operação executada com sucesso." : "Encontrei *2 parcelas* em atraso há mais de 15 dias:\n\n• KALIL EXEMPLO — SANTORINI-008 · 8/60 · 18 dias · R$ 5.000,00 (em pausa)\n• MARIA EXEMPLO — UMAR-01 · 4/60 · 16 dias · R$ 4.193,00\n\nQuer que eu envie a cobrança da Maria? Vou mostrar a mensagem antes.\n\nResponda \"Confirmo\" para executar ou \"Cancelar\"." };
       return { configurado: true, liberado: true, usuario: "sergio" };

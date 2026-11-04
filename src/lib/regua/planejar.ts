@@ -28,7 +28,8 @@ export type ItemPlano = {
   contrato: string;       // "UMAR-211"
   parcela: string;        // "4/60"
   imovel: string;         // "UMÁ MILAGRES — R - 211"
-  saldo: number;          // do bulk (revalidado no envio)
+  saldo: number;          // do bulk, sem correção (revalidado no envio)
+  saldoCorrigido: number; // do bulk, com correção monetária (= valor do boleto)
 };
 
 export type ConfigRegua = { diasAntes: number; etapasCobranca: number[]; tolerancia: number };
@@ -52,7 +53,7 @@ export function planejarRegua(parcelas: NormalizedIncomeInstallment[], hoje: str
       billId: p.billId, installmentId: p.installmentId, vencimento: p.vencimento, diasAteVencimento: d,
       clientId: p.clientId, clientName: p.clientName, contrato: contratoDe(p.documento), parcela: p.parcela,
       imovel: [empreendimentoDe(p.centroCusto), p.unidade].filter(Boolean).join(" — ") || contratoDe(p.documento),
-      saldo: p.saldo,
+      saldo: p.saldo, saldoCorrigido: p.saldoCorrigido > 0 ? p.saldoCorrigido : p.saldo,
     };
     // boleto:42:4:2026-11-26 · lembrete:42:4:2026-11-26 · cobranca:42:4:2026-11-26:D+7
     const chave = (prefixo: string, etapa?: string) => [prefixo, p.billId, p.installmentId, p.vencimento, etapa].filter(Boolean).join(":");

@@ -349,6 +349,8 @@ model ParcelaCache {
   clientId      Int?
   clientName    String
   valorOriginal Decimal  @default(0) @db.Decimal(18, 2) // valor da parcela quando criada (originalAmount)
+  saldoBase     Decimal  @default(0) @db.Decimal(18, 2) // balanceAmount (sem correção) no dia da leitura
+  saldoCorrigido Decimal @default(0) @db.Decimal(18, 2) // correctedBalanceAmount (com correção = valor do boleto)
   atualizadoEm  DateTime @updatedAt
 
   @@id([billId, installmentId])

@@ -10,7 +10,7 @@ import { renderTexto } from "../canal/modelos";
 import { valorDaLinha } from "../boleto/linha";
 import { agruparPorClienteTipo, janelaRegua, planejarRegua, type ItemPlano, type TipoRegua } from "./planejar";
 import { aplicarPausas } from "./pausas";
-import { salvarParcelas } from "../painel/parcelas";
+import { corrigir, salvarParcelas } from "../painel/parcelas";
 import { salvarHistorico } from "../painel/historico";
 
 // Executor da régua v2: 1 chamada bulk (income por vencimento) → plano →
@@ -120,8 +120,8 @@ export async function runRegua(opts: Opcoes = {}): Promise<ResumoRegua> {
       }
       if (!atual.generatedBoleto || (!boleto.url && !boleto.linhaDigitavel)) { aguardandoBoleto.push(it); continue; }
       prontos.push({
-        item: it, saldo: atual.balanceDue,
-        parcela: { parcela: it.parcela, imovel: it.imovel, vencimento: brData(it.vencimento), valor: fmtBRL(valorDaLinha(boleto.linhaDigitavel) ?? atual.balanceDue), boletoUrl: boleto.url, linhaDigitavel: boleto.linhaDigitavel },
+        item: it, saldo: valorDaLinha(boleto.linhaDigitavel) ?? corrigir(atual.balanceDue, it.saldo, it.saldoCorrigido),
+        parcela: { parcela: it.parcela, imovel: it.imovel, vencimento: brData(it.vencimento), valor: fmtBRL(valorDaLinha(boleto.linhaDigitavel) ?? corrigir(atual.balanceDue, it.saldo, it.saldoCorrigido)), boletoUrl: boleto.url, linhaDigitavel: boleto.linhaDigitavel },
       });
     }
 
@@ -200,7 +200,7 @@ async function registrar(it: ItemPlano, data: { status: string; motivo?: string;
   const base = {
     tipo: it.tipo, etapa: it.etapa, billId: it.billId, installmentId: it.installmentId,
     dueDate: new Date(`${it.vencimento}T12:00:00Z`), customerId: it.clientId, clienteNome: it.clientName,
-    contrato: it.contrato, parcela: it.parcela, valor: data.valor ?? it.saldo,
+    contrato: it.contrato, parcela: it.parcela, valor: data.valor ?? it.saldoCorrigido,
     status: data.status, motivo: data.motivo ?? null, destino: data.destino ?? "", conteudo: data.conteudo ?? null,
   };
   try {

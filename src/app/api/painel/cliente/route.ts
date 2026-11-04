@@ -6,7 +6,7 @@ import { normalizeCustomerPhones, normalizeInstallmentsList } from "@/lib/sienge
 import { localDateKey, diffDias } from "@/lib/collection/date";
 import { usuarioPainel } from "@/lib/painel/auth";
 import { contratosDoCliente } from "@/lib/painel/sienge-cache";
-import { cacheDe } from "@/lib/painel/parcelas";
+import { cacheDe, corrigirPeloCache } from "@/lib/painel/parcelas";
 
 // Ficha do cliente: extrato de cada contrato com TODAS as parcelas criadas
 // (Sienge, ao vivo: saldo e boleto) + valor original e nº "4/60" (ParcelaCache)
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       const paga = p.balanceDue <= 0;
       return {
         billId: c.billId, installmentId: p.installmentId, parcela: k?.parcela ?? null, tipoParc: k?.tipoParc ?? p.conditionTypeId ?? null,
-        vencimento: venc, saldo: p.balanceDue, paga, boletoGerado: p.generatedBoleto, diasAteVencimento: diffDias(hoje, venc),
+        vencimento: venc, saldo: corrigirPeloCache(p.balanceDue, k), saldoSemCorrecao: p.balanceDue, paga, boletoGerado: p.generatedBoleto, diasAteVencimento: diffDias(hoje, venc),
         valorOriginal: k && Number(k.valorOriginal) > 0 ? Number(k.valorOriginal) : null,
         valorPago: pg?.valor ? pg.valor : null, jurosMulta: pg?.jurosMulta || 0, pagoEm: pg?.ultimo || null,
         atrasoPagamento: pg?.ultimo ? Math.max(0, diffDias(venc, pg.ultimo)) : null,

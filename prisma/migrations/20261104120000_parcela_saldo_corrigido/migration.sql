@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "ParcelaCache" ADD COLUMN "saldoBase" DECIMAL(18,2) NOT NULL DEFAULT 0,
+ADD COLUMN "saldoCorrigido" DECIMAL(18,2) NOT NULL DEFAULT 0;

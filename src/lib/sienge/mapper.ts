@@ -201,6 +201,7 @@ export type NormalizedIncomeInstallment = {
   companyId: number | null; companyName: string; clientId: number | null; clientName: string;
   saldo: number; // balanceAmount do Sienge (0 = quitada)
   valorOriginal: number; // originalAmount: valor da parcela quando foi criada
+  saldoCorrigido: number; // correctedBalanceAmount: saldo COM correção monetária = valor do boleto
   baixas: NormalizedIncomeReceipt[];
 };
 
@@ -223,6 +224,7 @@ export function normalizeIncomeInstallments(payload: any): NormalizedIncomeInsta
       clientName: String(x?.clientName ?? "").trim(),
       saldo: n(x?.balanceAmount),
       valorOriginal: n(x?.originalAmount),
+      saldoCorrigido: n(x?.correctedBalanceAmount),
       baixas: (Array.isArray(x?.receipts) ? x.receipts : []).map((r: any) => ({
         operacao: String(r?.operationTypeName ?? ""),
         bruto: n(r?.grossAmount), desconto: n(r?.discountAmount), seguro: n(r?.insuranceAmount),

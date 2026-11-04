@@ -28,3 +28,18 @@ describe("conferência das mensagens enviadas", () => {
     expect(parcelasDoTexto("📄 Parcela 5/10\n💰 R$ 19.546,89")[0].valorTexto).toBe(19546.89);
   });
 });
+
+import { corrigir } from "../src/lib/painel/parcelas";
+describe("saldo com correção monetária (= valor do boleto)", () => {
+  it("aplica o fator corrigido/base do Sienge", () => {
+    expect(corrigir(19974.68, 19974.68, 20273.67)).toBe(20273.67); // Tharsila 4/4
+    expect(corrigir(4193, 4193, 4255.76)).toBe(4255.76);           // Vitória 3/60
+  });
+  it("pagamento parcial depois da leitura: corrige o saldo que sobrou", () => {
+    expect(corrigir(2000, 4000, 4060)).toBe(2030);
+  });
+  it("sem fator ou parcela paga", () => {
+    expect(corrigir(4193, 0, 0)).toBe(4193);
+    expect(corrigir(0, 4193, 4255.76)).toBe(0);
+  });
+});

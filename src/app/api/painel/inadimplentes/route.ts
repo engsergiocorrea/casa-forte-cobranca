@@ -6,7 +6,7 @@ import { normalizeInstallmentsList } from "@/lib/sienge/mapper";
 import { localDateKey, diffDias } from "@/lib/collection/date";
 import { usuarioPainel } from "@/lib/painel/auth";
 import { contratos } from "@/lib/painel/sienge-cache";
-import { cacheDe } from "@/lib/painel/parcelas";
+import { cacheDe, corrigirPeloCache } from "@/lib/painel/parcelas";
 
 // Parcelas vencidas e em aberto (Sienge, ao vivo, sem limite diário), com a
 // última cobrança registrada e se o cliente está em pausa.
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       const pausa = pausas.find((z) => (z.customerId && z.customerId === cli?.id) || (z.billId && z.billId === c.billId));
       return { customerId: cli?.id ?? null, cliente: cli?.nome ?? "", contrato: c.numero, empreendimento: c.empreendimento, unidades: c.unidades.join(", "),
         billId: c.billId, installmentId: p.installmentId, parcela: cache.get(`${c.billId}/${p.installmentId}`)?.parcela ?? null,
-        vencimento: venc, diasAtraso: -diffDias(hoje, venc), saldo: p.balanceDue, boletoGerado: p.generatedBoleto, pausa: pausa?.motivo ?? null };
+        vencimento: venc, diasAtraso: -diffDias(hoje, venc), saldo: corrigirPeloCache(p.balanceDue, cache.get(`${c.billId}/${p.installmentId}`)), saldoSemCorrecao: p.balanceDue, boletoGerado: p.generatedBoleto, pausa: pausa?.motivo ?? null };
     });
   }))).flat().sort((x, y) => y.diasAtraso - x.diasAtraso);
   const ultimas = await db.comunicacao.findMany({ where: { tipo: "COBRANCA", status: { in: ["ENVIADA", "ENTREGUE", "LIDA"] }, billId: { in: linhas.map((l) => l.billId!) } }, orderBy: { enviadaEm: "desc" } });

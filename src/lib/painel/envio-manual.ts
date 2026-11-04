@@ -7,7 +7,7 @@ import { localDateKey } from "../collection/date";
 import { canalAtual, type CanalWhatsApp, type ItemParcela, type MensagemPadrao, type ModeloMensagem } from "../canal";
 import { renderTexto } from "../canal/modelos";
 import { valorDaLinha } from "../boleto/linha";
-import { cacheDe, garantirCache } from "./parcelas";
+import { cacheDe, corrigirPeloCache, garantirCache } from "./parcelas";
 import { contratosDoCliente } from "./sienge-cache";
 
 // Envio MANUAL pelo painel (o financeiro comanda): boleto, lembrete ou cobrança
@@ -51,9 +51,9 @@ export async function prepararEnvioManual(p: PedidoManual) {
     const venc = atual.dueDate.toISOString().slice(0, 10);
     const imovel = c ? [empreendimentoDe(c.centroCusto), c.unidade].filter(Boolean).join(" — ") : [k?.empreendimento, k?.unidades.join(", ")].filter(Boolean).join(" — ");
     prontos.push({
-      billId: it.billId, installmentId: it.installmentId, saldo: atual.balanceDue, vencimento: venc,
+      billId: it.billId, installmentId: it.installmentId, saldo: valorDaLinha(boleto.linhaDigitavel) ?? corrigirPeloCache(atual.balanceDue, c), vencimento: venc,
       contrato: c ? c.documento.split("/").pop()!.trim() : (k?.numero ?? String(it.billId)),
-      parcela: { parcela: c?.parcela ?? `vencimento ${br(venc)}`, imovel: imovel || (k?.numero ?? ""), vencimento: br(venc), valor: fmtBRL(valorDaLinha(boleto.linhaDigitavel) ?? atual.balanceDue), boletoUrl: boleto.url, linhaDigitavel: boleto.linhaDigitavel },
+      parcela: { parcela: c?.parcela ?? `vencimento ${br(venc)}`, imovel: imovel || (k?.numero ?? ""), vencimento: br(venc), valor: fmtBRL(valorDaLinha(boleto.linhaDigitavel) ?? corrigirPeloCache(atual.balanceDue, c)), boletoUrl: boleto.url, linhaDigitavel: boleto.linhaDigitavel },
     });
   }
 

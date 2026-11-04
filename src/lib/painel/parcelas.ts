@@ -10,7 +10,7 @@ export async function salvarParcelas(ps: NormalizedIncomeInstallment[]) {
     if (!p.billId || !p.installmentId || !p.parcela) continue;
     const data = {
       parcela: p.parcela, tipoParc: p.tipoParc, unidade: p.unidade, documento: p.documento, centroCusto: p.centroCusto,
-      vencimento: p.vencimento, clientId: p.clientId, clientName: p.clientName,
+      vencimento: p.vencimento, clientId: p.clientId, clientName: p.clientName, valorOriginal: p.valorOriginal ?? 0,
     };
     await db.parcelaCache.upsert({ where: { billId_installmentId: { billId: p.billId, installmentId: p.installmentId } }, create: { billId: p.billId, installmentId: p.installmentId, ...data }, update: data });
   }

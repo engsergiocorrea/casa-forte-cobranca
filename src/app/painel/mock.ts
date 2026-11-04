@@ -24,11 +24,12 @@ const relatorio = {
 
 const config = { envioLigado: true, whatsappTeste: false, reguaTeste: true, boleto: true, lembrete: true, cobranca: true, etapas: [1, 7, 15], diasAntes: 10, relatorioAuto: false, destinatariosRelatorio: 2, canal: "evolution" };
 
+const parcela = (billId: number, n: number, venc: number, o: any = {}) => ({ billId, installmentId: n + 1, parcela: `${n}/60`, tipoParc: "PM", vencimento: d(venc), saldo: 4193, paga: false, boletoGerado: true, diasAteVencimento: venc,
+  valorOriginal: 4193, valorPago: null, jurosMulta: 0, pagoEm: null, atrasoPagamento: null, parcial: false, outrasBaixas: [], ...o });
+const paga = (billId: number, n: number, venc: number, pagoDias: number, juros = 0) => parcela(billId, n, venc, { saldo: 0, paga: true, valorPago: 4193 + juros, jurosMulta: juros, pagoEm: d(venc + pagoDias), atrasoPagamento: Math.max(0, pagoDias) });
 const parcelas = (billId: number) => [
-  { billId, installmentId: 5, parcela: "4/60", tipoParc: "PM", vencimento: d(-8), saldo: 4193, paga: false, boletoGerado: true, diasAteVencimento: -8 },
-  { billId, installmentId: 6, parcela: "5/60", tipoParc: "PM", vencimento: d(0), saldo: 4193, paga: false, boletoGerado: true, diasAteVencimento: 0 },
-  { billId, installmentId: 7, parcela: "6/60", tipoParc: "PM", vencimento: d(9), saldo: 4193, paga: false, boletoGerado: false, diasAteVencimento: 9 },
-  { billId, installmentId: 8, parcela: "1/10", tipoParc: "PM", vencimento: d(9), saldo: 15094.8, paga: false, boletoGerado: true, diasAteVencimento: 9 },
+  paga(billId, 1, -98, 0), paga(billId, 2, -68, -1), paga(billId, 3, -38, 6, 41.5),
+  parcela(billId, 4, -8), parcela(billId, 5, 0), parcela(billId, 6, 22, { boletoGerado: false }), parcela(billId, 7, 52, { boletoGerado: false }),
 ];
 
 export function mockApi(url: string, init?: RequestInit): any {
@@ -42,7 +43,8 @@ export function mockApi(url: string, init?: RequestInit): any {
     ];
     case "/api/painel/cliente": return {
       customerId: 1, nome: "MARIA DAS GRAÇAS DE SOUZA E SILVA EXEMPLO", telefone: "+5582999990000",
-      contratos: [{ numero: "UMAR-01", empreendimento: "UMÁ MILAGRES", unidades: ["R - 01"], situacao: "Emitido", billId: 99, parcelas: parcelas(99) }],
+      contratos: [{ numero: "UMAR-01", empreendimento: "UMÁ MILAGRES", unidades: ["R - 01"], situacao: "Emitido", billId: 99, parcelas: parcelas(99), sincronizadoEm: new Date().toISOString(),
+        resumo: { criadas: 7, pagas: 3, emAberto: 4, vencidas: 1, valorContrato: 29351, totalPago: 12620.5, saldoAberto: 16772, saldoVencido: 4193, pagasComAtraso: 1 } }],
       comunicacoes: [{ tipo: "BOLETO", etapa: "D-10", status: "ENVIADA", contrato: "UMAR-01", parcela: "3/60", valor: 4193, solicitadoPor: "cron", enviadaEm: new Date().toISOString(), atualizadaEm: new Date().toISOString() },
         { tipo: "COBRANCA", etapa: "MANUAL", status: "SEM_WHATSAPP", motivo: "NUMERO_SEM_WHATSAPP", contrato: "UMAR-01", parcela: "4/60", valor: 4193, solicitadoPor: "painel:bruna", atualizadaEm: new Date().toISOString() }],
       confirmacoes: [{ contrato: "UMAR-01", installmentId: 4, status: "SENT", valor: 4100, pagoEm: d(-30), enviadaEm: new Date().toISOString() }],

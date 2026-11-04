@@ -8,7 +8,9 @@ import { usuarioPainel } from "@/lib/painel/auth";
 import { contratosDoCliente } from "@/lib/painel/sienge-cache";
 import { cacheDe } from "@/lib/painel/parcelas";
 
-// Ficha do cliente: contratos, parcelas (Sienge, ao vivo), comunicações e pausas.
+// Ficha do cliente: extrato de cada contrato com TODAS as parcelas criadas
+// (Sienge, ao vivo: saldo e boleto) + valor original e nº "4/60" (ParcelaCache)
+// + pagamentos (PagamentoHistorico: data, valor pago, atraso), comunicações e pausas.
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const a = usuarioPainel(req, { brain: true }); if ("erro" in a) return a.erro;
@@ -17,20 +19,49 @@ export async function GET(req: NextRequest) {
   const hoje = localDateKey(new Date(), env().TIMEZONE);
   const contratos = await contratosDoCliente(customerId);
   const billIds = contratos.map((c) => c.billId).filter(Boolean) as number[];
-  const cache = await cacheDe(billIds);
+  const [cache, baixas, syncs] = await Promise.all([
+    cacheDe(billIds),
+    db.pagamentoHistorico.findMany({ where: { billId: { in: billIds } } }),
+    db.historicoSync.findMany({ where: { billId: { in: billIds } } }),
+  ]);
+  const pagosPor = new Map<string, { valor: number; jurosMulta: number; ultimo: string; outras: string[] }>();
+  for (const b of baixas) {
+    const k = `${b.billId}/${b.installmentId}`;
+    const g = pagosPor.get(k) ?? { valor: 0, jurosMulta: 0, ultimo: "", outras: [] };
+    if (b.real) { g.valor += Number(b.liquido); g.jurosMulta += Number(b.juros) + Number(b.multa); if (b.pagoEm > g.ultimo) g.ultimo = b.pagoEm; }
+    else if (b.operacao && !g.outras.includes(b.operacao)) g.outras.push(b.operacao);
+    pagosPor.set(k, g);
+  }
 
   const fichas = await Promise.all(contratos.map(async (c) => {
-    if (!c.billId) return { ...c, parcelas: [] };
+    if (!c.billId) return { ...c, parcelas: [], resumo: null, sincronizadoEm: null };
     const ps = normalizeInstallmentsList(await sienge.getInstallments(c.billId)).sort((x, y) => +x.dueDate - +y.dueDate);
-    return {
-      ...c,
-      parcelas: ps.map((p) => {
-        const venc = p.dueDate.toISOString().slice(0, 10);
-        const k = cache.get(`${c.billId}/${p.installmentId}`);
-        return { billId: c.billId, installmentId: p.installmentId, parcela: k?.parcela ?? null, tipoParc: k?.tipoParc ?? p.conditionTypeId ?? null,
-          vencimento: venc, saldo: p.balanceDue, paga: p.balanceDue <= 0, boletoGerado: p.generatedBoleto, diasAteVencimento: diffDias(hoje, venc) };
-      }),
+    const parcelas = ps.map((p) => {
+      const venc = p.dueDate.toISOString().slice(0, 10);
+      const chave = `${c.billId}/${p.installmentId}`;
+      const k = cache.get(chave);
+      const pg = pagosPor.get(chave);
+      const paga = p.balanceDue <= 0;
+      return {
+        billId: c.billId, installmentId: p.installmentId, parcela: k?.parcela ?? null, tipoParc: k?.tipoParc ?? p.conditionTypeId ?? null,
+        vencimento: venc, saldo: p.balanceDue, paga, boletoGerado: p.generatedBoleto, diasAteVencimento: diffDias(hoje, venc),
+        valorOriginal: k && Number(k.valorOriginal) > 0 ? Number(k.valorOriginal) : null,
+        valorPago: pg?.valor ? pg.valor : null, jurosMulta: pg?.jurosMulta || 0, pagoEm: pg?.ultimo || null,
+        atrasoPagamento: pg?.ultimo ? Math.max(0, diffDias(venc, pg.ultimo)) : null,
+        parcial: !paga && Boolean(pg?.valor), outrasBaixas: pg?.outras ?? [],
+      };
+    });
+    const pagas = parcelas.filter((p) => p.paga), abertas = parcelas.filter((p) => !p.paga);
+    const resumo = {
+      criadas: parcelas.length, pagas: pagas.length, emAberto: abertas.length,
+      vencidas: abertas.filter((p) => p.diasAteVencimento < 0).length,
+      valorContrato: parcelas.reduce((s, p) => s + (p.valorOriginal ?? 0), 0),
+      totalPago: parcelas.reduce((s, p) => s + (p.valorPago ?? 0), 0),
+      saldoAberto: abertas.reduce((s, p) => s + p.saldo, 0),
+      saldoVencido: abertas.filter((p) => p.diasAteVencimento < 0).reduce((s, p) => s + p.saldo, 0),
+      pagasComAtraso: pagas.filter((p) => (p.atrasoPagamento ?? 0) > 0).length,
     };
+    return { ...c, parcelas, resumo, sincronizadoEm: syncs.find((s) => s.billId === c.billId)?.sincronizadoEm ?? null };
   }));
 
   let nome = contratos[0]?.clientes[0]?.nome ?? "", telefone: string | null = null;

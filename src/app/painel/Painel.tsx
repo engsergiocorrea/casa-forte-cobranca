@@ -298,37 +298,35 @@ function Clientes({ abrirId }: { abrirId: number | null }) {
   </>;
 }
 
-// Histórico de pagamentos do título (baixas do Sienge desde o início do
-// contrato, guardadas na nossa base). Abre sob demanda; "Atualizar do Sienge"
-// gasta 1 das 20 consultas bulk do dia.
-function HistoricoPagamentos({ billId }: { billId: number }) {
-  const [aberto, setAberto] = useState(false);
-  const [h, setH] = useState<any>(null); const [erro, setErro] = useState(""); const [atualizando, setAtualizando] = useState(false);
-  useEffect(() => { if (aberto && !h) api(`/api/painel/historico-pagamentos?billId=${billId}`).then(setH).catch((e) => setErro(e.message)); }, [aberto, h, billId]);
-  const atualizar = async () => { setAtualizando(true); setErro(""); try { setH(await api("/api/painel/historico-pagamentos", { method: "POST", body: JSON.stringify({ billId }) })); } catch (e) { setErro((e as Error).message); } finally { setAtualizando(false); } };
-  return <div className="cf-hist">
-    <button className="cf-hist-tog" onClick={() => setAberto((x) => !x)} aria-expanded={aberto}><Icone n="historico" t={16} /> Histórico de pagamentos <span aria-hidden="true">{aberto ? "▴" : "▾"}</span></button>
-    {aberto && <div className="cf-hist-in">
-      {erro && <div className="cf-banner erro">{erro}</div>}
-      {!h && !erro && <p className="muted">Carregando…</p>}
-      {h && <>
-        <div className="cf-hist-res">
-          <span><b>{h.resumo.pagamentos}</b> pagamentos</span>
-          <span><b>{brl(h.resumo.totalPago)}</b> pagos</span>
-          <span><b>{h.resumo.emDia}</b> em dia</span>
-          <span className={h.resumo.comAtraso ? "al" : ""}><b>{h.resumo.comAtraso}</b> com atraso{h.resumo.comAtraso ? ` · média ${h.resumo.atrasoMedio} d` : ""}</span>
-          {h.resumo.jurosMulta > 0 && <span><b>{brl(h.resumo.jurosMulta)}</b> juros/multa</span>}
-        </div>
-        <Tabela cols={[{ t: "Parcela", destaque: true }, { t: "Vencimento" }, { t: "Pago em" }, { t: "Valor pago", num: true }, { t: "Juros/multa", num: true }, { t: "Situação" }]}
-          vazio={h.sincronizadoEm ? "Nenhum pagamento registrado no Sienge." : "Histórico ainda não sincronizado. Clique em “Atualizar do Sienge”."}
-          linhas={h.pagamentos.map((p: any, i: number) => ({ k: `${p.installmentId}-${i}`, c: [
-            p.parcela ? `Parcela ${p.parcela}` : `#${p.installmentId}`, br(p.vencimento), br(p.pagoEm), brl(p.valorPago), p.jurosMulta ? brl(p.jurosMulta) : "—",
-            !p.real ? <span className="cf-st">{p.operacao || "Baixa"}</span> : p.diasAtraso > 0 ? <span className="cf-st al">{p.diasAtraso} d de atraso</span> : <span className="cf-st ok">Em dia</span>,
-          ] }))} />
-        <div className="cf-hist-rod"><span className="muted">{h.sincronizadoEm ? `Atualizado do Sienge em ${quando(h.sincronizadoEm)}` : "Ainda não sincronizado"}</span>
-          <button className="bt leve mini" disabled={atualizando} onClick={atualizar}>{atualizando ? "Atualizando…" : "Atualizar do Sienge"}</button></div>
-      </>}
-    </div>}
+// Extrato do contrato: TODAS as parcelas criadas, com a situação de cada uma
+// (paga — quando e quanto —, em aberto, vencida). Pagamentos vêm da nossa base
+// (sincronizada com o Sienge todo dia); "Atualizar do Sienge" gasta 1 das 20
+// consultas bulk do dia.
+type FiltroParcelas = "todas" | "aberto" | "vencidas" | "pagas";
+const FILTROS: [FiltroParcelas, string][] = [["todas", "Todas"], ["aberto", "Em aberto"], ["vencidas", "Vencidas"], ["pagas", "Pagas"]];
+const VAZIO_FILTRO: Record<FiltroParcelas, string> = { todas: "Nenhuma parcela neste contrato.", aberto: "Nenhuma parcela em aberto.", vencidas: "Nenhuma parcela vencida.", pagas: "Nenhuma parcela paga ainda." };
+
+function situacaoParcela(p: any) {
+  if (p.paga) {
+    if (p.pagoEm) return p.atrasoPagamento > 0 ? <span className="cf-st al">Paga com {p.atrasoPagamento} d de atraso</span> : <span className="cf-st ok">Paga em dia</span>;
+    return <span className="cf-st ok">{p.outrasBaixas?.length ? `Baixada (${p.outrasBaixas.join(", ")})` : "Paga"}</span>;
+  }
+  const pre = p.parcial ? "Parcial · " : "";
+  if (p.diasAteVencimento < 0) return <span className="cf-st er">{pre}{-p.diasAteVencimento} d em atraso</span>;
+  if (p.diasAteVencimento === 0) return <span className="cf-st al">{pre}Vence hoje</span>;
+  return <span className="cf-st">{pre}A vencer · {p.diasAteVencimento} d</span>;
+}
+
+function ResumoContrato({ r }: { r: any }) {
+  if (!r) return null;
+  return <div className="cf-hist-res">
+    <span><b>{r.criadas}</b> parcelas</span>
+    <span><b>{r.pagas}</b> pagas{r.pagasComAtraso ? ` (${r.pagasComAtraso} com atraso)` : ""}</span>
+    <span><b>{r.emAberto}</b> em aberto</span>
+    <span className={r.vencidas ? "al" : ""}><b>{r.vencidas}</b> vencidas{r.vencidas ? ` · ${brl(r.saldoVencido)}` : ""}</span>
+    {r.valorContrato > 0 && <span>Contrato <b>{brl(r.valorContrato)}</b></span>}
+    <span>Pago <b>{brl(r.totalPago)}</b></span>
+    <span>Em aberto <b>{brl(r.saldoAberto)}</b></span>
   </div>;
 }
 
@@ -336,7 +334,8 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
   const [d, setD] = useState<any>(null); const [erro, setErro] = useState("");
   const [marcadas, setMarcadas] = useState<Record<string, boolean>>({});
   const [modal, setModal] = useState<Pedido[] | null>(null);
-  const [verTodas, setVerTodas] = useState(false);
+  const [filtro, setFiltro] = useState<FiltroParcelas>("todas");
+  const [atualizando, setAtualizando] = useState<number | null>(null);
   const [pausaForm, setPausaForm] = useState(false);
   const carregar = useCallback(() => { setD(null); api(`/api/painel/cliente?customerId=${customerId}`).then(setD).catch((e) => setErro(e.message)); }, [customerId]);
   useEffect(carregar, [carregar]);
@@ -346,6 +345,12 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
   const itensMarcados = d.contratos.flatMap((c: any) => c.parcelas).filter((p: any) => marcadas[chave(p)]).map((p: any) => ({ billId: p.billId, installmentId: p.installmentId }));
   const abrir = (tipo: TipoEnvio) => setModal([{ tipo, customerId, nome: d.nome, itens: itensMarcados }]);
   const alternar = (p: any) => !p.paga && setMarcadas((m) => ({ ...m, [chave(p)]: !m[chave(p)] }));
+  async function atualizarPagamentos(billId: number) {
+    setAtualizando(billId);
+    try { await api("/api/painel/historico-pagamentos", { method: "POST", body: JSON.stringify({ billId }) }); carregar(); }
+    catch (e) { alert((e as Error).message); }
+    finally { setAtualizando(null); }
+  }
   async function removerPausa(id: string) { if (!confirm("Remover a pausa deste cliente?")) return; await api(`/api/painel/pausas?id=${id}`, { method: "DELETE" }); carregar(); }
   return <div className="com-barra">
     <button className="bt leve mini" onClick={voltar}>← Voltar à busca</button>
@@ -354,25 +359,30 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
     {d.pausas.map((p: any) => <div key={p.id} className="cf-banner teste">⏸️ Em pausa ({p.tipos}{p.ate ? ` até ${br(p.ate)}` : ", sem prazo"}): {p.motivo} <button className="bt leve mini" onClick={() => removerPausa(p.id)}>Remover pausa</button></div>)}
     <div className="acoes">
       {!d.pausas.length && <button className="bt leve mini" onClick={() => setPausaForm(true)}>Pausar cliente</button>}
-      <label className="cf-check"><input type="checkbox" checked={verTodas} onChange={(e) => setVerTodas(e.target.checked)} /> Mostrar pagas e futuras</label>
+      <div className="cf-seg" role="tablist" aria-label="Filtrar parcelas">{FILTROS.map(([k, r]) => <button key={k} role="tab" aria-selected={filtro === k} className={filtro === k ? "ativo" : ""} onClick={() => setFiltro(k)}>{r}</button>)}</div>
     </div>
     {pausaForm && <FormPausa contrato={d.contratos[0]?.numero} onDone={() => { setPausaForm(false); carregar(); }} />}
     {d.contratos.map((c: any) => {
-      const ps = c.parcelas.filter((p: any) => verTodas || (!p.paga && p.diasAteVencimento <= 40));
+      const ps = c.parcelas.filter((p: any) => filtro === "todas" || (filtro === "pagas" ? p.paga : filtro === "vencidas" ? !p.paga && p.diasAteVencimento < 0 : !p.paga));
       return <section className="cf-box" key={c.numero}>
         <h2>{c.numero} · {c.empreendimento} {c.unidades.join(", ")}</h2>
-        <Tabela cols={[{ t: "", chk: true }, { t: "Parcela", destaque: true }, { t: "Vencimento" }, { t: "Saldo", num: true }, { t: "Boleto" }, { t: "Situação" }]}
-          vazio="Nenhuma parcela em aberto nos próximos 40 dias." linhas={ps.map((p: any) => ({
+        <ResumoContrato r={c.resumo} />
+        <Tabela cols={[{ t: "", chk: true }, { t: "Parcela", destaque: true }, { t: "Vencimento" }, { t: "Valor", num: true }, { t: "Pagamento" }, { t: "Saldo", num: true }, { t: "Situação" }, { t: "Boleto" }]}
+          vazio={VAZIO_FILTRO[filtro]} linhas={ps.map((p: any) => ({
             k: chave(p), marcada: !!marcadas[chave(p)],
             c: [
               !p.paga ? <input type="checkbox" aria-label="Marcar parcela" checked={!!marcadas[chave(p)]} onChange={() => alternar(p)} /> : null,
               <span key="p" onClick={() => alternar(p)}>{p.parcela ? `Parcela ${p.parcela}` : `Parcela #${p.installmentId}`} <span className="muted">{p.tipoParc ?? ""}</span></span>,
-              br(p.vencimento), brl(p.saldo),
+              br(p.vencimento),
+              brl(p.valorOriginal ?? (p.paga ? p.valorPago : p.saldo)),
+              p.pagoEm ? `${br(p.pagoEm)} · ${brl(p.valorPago)}${p.jurosMulta ? ` (+${brl(p.jurosMulta)} juros/multa)` : ""}` : "—",
+              p.paga ? "—" : brl(p.saldo),
+              situacaoParcela(p),
               p.paga ? "—" : p.boletoGerado ? <span className="cf-st ok">Gerado</span> : <span className="cf-st er">Sem boleto</span>,
-              p.paga ? <span className="cf-st ok">Paga</span> : p.diasAteVencimento < 0 ? <span className="cf-st er">{-p.diasAteVencimento} d em atraso</span> : p.diasAteVencimento === 0 ? <span className="cf-st al">Vence hoje</span> : <span className="cf-st">em {p.diasAteVencimento} d</span>,
             ],
           }))} />
-        {c.billId && <HistoricoPagamentos billId={c.billId} />}
+        {c.billId && <div className="cf-hist-rod"><span className="muted">{c.sincronizadoEm ? `Pagamentos atualizados do Sienge em ${quando(c.sincronizadoEm)}` : "Pagamentos ainda não sincronizados com o Sienge"}</span>
+          <button className="bt leve mini" disabled={atualizando === c.billId} onClick={() => atualizarPagamentos(c.billId)}>{atualizando === c.billId ? "Atualizando…" : "Atualizar do Sienge"}</button></div>}
       </section>;
     })}
     <section className="cf-box"><h2>Mensagens</h2>

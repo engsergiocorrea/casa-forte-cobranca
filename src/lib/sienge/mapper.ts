@@ -200,6 +200,7 @@ export type NormalizedIncomeInstallment = {
   vencimento: string; // yyyy-mm-dd
   companyId: number | null; companyName: string; clientId: number | null; clientName: string;
   saldo: number; // balanceAmount do Sienge (0 = quitada)
+  valorOriginal: number; // originalAmount: valor da parcela quando foi criada
   baixas: NormalizedIncomeReceipt[];
 };
 
@@ -221,6 +222,7 @@ export function normalizeIncomeInstallments(payload: any): NormalizedIncomeInsta
       clientId: x?.clientId != null ? Number(x.clientId) : null,
       clientName: String(x?.clientName ?? "").trim(),
       saldo: n(x?.balanceAmount),
+      valorOriginal: n(x?.originalAmount),
       baixas: (Array.isArray(x?.receipts) ? x.receipts : []).map((r: any) => ({
         operacao: String(r?.operationTypeName ?? ""),
         bruto: n(r?.grossAmount), desconto: n(r?.discountAmount), seguro: n(r?.insuranceAmount),

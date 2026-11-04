@@ -348,6 +348,7 @@ model ParcelaCache {
   vencimento    String   // yyyy-mm-dd
   clientId      Int?
   clientName    String
+  valorOriginal Decimal  @default(0) @db.Decimal(18, 2) // valor da parcela quando criada (originalAmount)
   atualizadoEm  DateTime @updatedAt
 
   @@id([billId, installmentId])

@@ -88,6 +88,7 @@ export function mockApi(url: string, init?: RequestInit): any {
         ], vencidoPorEmpreendimento: {} };
     }
     case "/api/painel/brain":
+      if (init?.method === "POST" && /extrato/i.test(corpo.mensagem)) return { resposta: "Aqui está o extrato da *Maria*, com todas as parcelas dos contratos:\n/api/painel/extrato/pdf?customerId=1" };
       if (init?.method === "POST") return { resposta: corpo.mensagem === "Confirmo" ? "Operação executada com sucesso." : "Encontrei *2 parcelas* em atraso há mais de 15 dias:\n\n• KALIL EXEMPLO — SANTORINI-008 · 8/60 · 18 dias · R$ 5.000,00 (em pausa)\n• MARIA EXEMPLO — UMAR-01 · 4/60 · 16 dias · R$ 4.193,00\n\nQuer que eu envie a cobrança da Maria? Vou mostrar a mensagem antes.\n\nResponda \"Confirmo\" para executar ou \"Cancelar\"." };
       return { configurado: true, liberado: true, usuario: "sergio" };
     default: return {};

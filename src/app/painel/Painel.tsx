@@ -124,9 +124,18 @@ const EXEMPLOS_BRAIN = [
 type MsgBrain = { de: "eu" | "brain" | "erro"; texto: string };
 const CHAVE_BRAIN = "cf-brain-conversa";
 
-// *negrito* e quebras de linha (formato WhatsApp), sem HTML cru.
+// *negrito*, quebras de linha (formato WhatsApp) e links de documentos do
+// painel (/api/painel/…pdf) viram botão de download. Sem HTML cru; só links
+// internos do próprio painel — nada de URL externa vinda da IA.
+const LINK_DOC = /(\/api\/painel\/(?:extrato\/pdf|recibo\/pdf|fluxo\/pdf|relatorio)(?:\?[\w=&:,.%-]*)?)/g;
+const nomeDoc = (href: string) => href.includes("/extrato/") ? "Baixar extrato (PDF)" : href.includes("/recibo/") ? "Baixar recibo (PDF)" : href.includes("/fluxo/") ? "Baixar fluxo de caixa (PDF)" : "Baixar relatório do dia (PDF)";
+function TrechoBrain({ s }: { s: string }) {
+  return <>{s.split(/(\*[^*\n]+\*)/g).map((x, k) => /^\*[^*]+\*$/.test(x) ? <b key={k}>{x.slice(1, -1)}</b> : x)}</>;
+}
 function TextoBrain({ t }: { t: string }) {
-  return <>{t.split("\n").map((linha, i) => <span key={i} className="cf-brain-linha">{linha.split(/(\*[^*\n]+\*)/g).map((x, k) => /^\*[^*]+\*$/.test(x) ? <b key={k}>{x.slice(1, -1)}</b> : x)}{"\n"}</span>)}</>;
+  return <>{t.split("\n").map((linha, i) => <span key={i} className="cf-brain-linha">{linha.split(LINK_DOC).map((x, k) => k % 2 === 1
+    ? <a key={k} className="cf-bx-doc" href={x} download><Icone n="pdf" t={16} /> {nomeDoc(x)}</a>
+    : <TrechoBrain key={k} s={x} />)}{"\n"}</span>)}</>;
 }
 
 const primeiroNome = (u?: string) => (u ? u.charAt(0).toUpperCase() + u.slice(1) : "");
@@ -359,6 +368,7 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
     {d.pausas.map((p: any) => <div key={p.id} className="cf-banner teste">⏸️ Em pausa ({p.tipos}{p.ate ? ` até ${br(p.ate)}` : ", sem prazo"}): {p.motivo} <button className="bt leve mini" onClick={() => removerPausa(p.id)}>Remover pausa</button></div>)}
     <div className="acoes">
       {!d.pausas.length && <button className="bt leve mini" onClick={() => setPausaForm(true)}>Pausar cliente</button>}
+      <a className="bt leve mini" href={`/api/painel/extrato/pdf?customerId=${customerId}`} download><Icone n="pdf" t={16} /> Extrato (PDF)</a>
       <div className="cf-seg" role="tablist" aria-label="Filtrar parcelas">{FILTROS.map(([k, r]) => <button key={k} role="tab" aria-selected={filtro === k} className={filtro === k ? "ativo" : ""} onClick={() => setFiltro(k)}>{r}</button>)}</div>
     </div>
     {pausaForm && <FormPausa contrato={d.contratos[0]?.numero} onDone={() => { setPausaForm(false); carregar(); }} />}
@@ -375,7 +385,7 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
               <span key="p" onClick={() => alternar(p)}>{p.parcela ? `Parcela ${p.parcela}` : `Parcela #${p.installmentId}`} <span className="muted">{p.tipoParc ?? ""}</span></span>,
               br(p.vencimento),
               brl(p.valorOriginal ?? (p.paga ? p.valorPago : p.saldo)),
-              p.pagoEm ? `${br(p.pagoEm)} · ${brl(p.valorPago)}${p.jurosMulta ? ` (+${brl(p.jurosMulta)} juros/multa)` : ""}` : "—",
+              p.pagoEm ? <span key="pg">{br(p.pagoEm)} · {brl(p.valorPago)}{p.jurosMulta ? ` (+${brl(p.jurosMulta)} juros/multa)` : ""} <a className="cf-link-mini" href={`/api/painel/recibo/pdf?itens=${p.billId}:${p.installmentId}`} download>Recibo</a></span> : "—",
               p.paga ? "—" : brl(p.saldo),
               situacaoParcela(p),
               p.paga ? "—" : p.boletoGerado ? <span className="cf-st ok">Gerado</span> : <span className="cf-st er">Sem boleto</span>,

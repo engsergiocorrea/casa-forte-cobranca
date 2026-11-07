@@ -19,7 +19,7 @@ async function request<T>(path: string, init?: RequestInit, base = baseUrl()): P
   const r = await fetch(`${base}${path}`, {
     ...init,
     headers: { Accept: "application/json", Authorization: authHeader(), ...(init?.headers || {}) },
-    signal: AbortSignal.timeout(15_000),
+    signal: init?.signal ?? AbortSignal.timeout(15_000),
     cache: "no-store"
   });
   if (!r.ok) throw new Error(`Sienge ${r.status} ${path}: ${(await r.text()).slice(0, 500)}`);
@@ -73,6 +73,8 @@ export const sienge = {
   listCustomers: (limit = 5, offset = 0) => request<any>(`/customers?limit=${limit}&offset=${offset}`),
   listSalesContracts: (limit = 5, offset = 0) => request<any>(`/sales-contracts?limit=${limit}&offset=${offset}`),
   listUnits: (limit = 5, offset = 0) => request<any>(`/units?limit=${limit}&offset=${offset}`),
+  // Leitura genérica (só GET) dos recursos REST liberados — usada pelas consultas do Brain.
+  listar: (recurso: "enterprises" | "units" | "checking-accounts" | "cost-centers" | "customers", limit = 200, offset = 0) => request<any>(`/${recurso}?limit=${limit}&offset=${offset}`, { signal: AbortSignal.timeout(45_000) }),
   // Movimentos de caixa e bancos por data de movimentação (selectionType=M).
   // Bulk-data: 20 req/dia — usar 1x por execução da régua, nunca em loop.
   listBankMovements: (startDate: string, endDate: string) =>

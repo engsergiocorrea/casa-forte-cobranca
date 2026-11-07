@@ -24,7 +24,7 @@ export async function salvarHistorico(ps: NormalizedIncomeInstallment[]) {
         data: baixas.map((b, seq) => ({
           billId: p.billId, installmentId: p.installmentId, seq, clientId: p.clientId,
           parcela: p.parcela, vencimento: p.vencimento, pagoEm: b.pagoEm, operacao: b.operacao, real: REAL.test(b.operacao),
-          bruto: b.bruto, desconto: b.desconto, juros: b.juros, multa: b.multa, liquido: b.liquido,
+          bruto: b.bruto, seguro: b.seguro ?? 0, desconto: b.desconto, juros: b.juros, multa: b.multa, liquido: b.liquido,
         })),
       })] : []),
     ]);

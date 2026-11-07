@@ -351,6 +351,8 @@ model ParcelaCache {
   valorOriginal Decimal  @default(0) @db.Decimal(18, 2) // valor da parcela quando criada (originalAmount)
   saldoBase     Decimal  @default(0) @db.Decimal(18, 2) // balanceAmount (sem correção) no dia da leitura
   saldoCorrigido Decimal @default(0) @db.Decimal(18, 2) // correctedBalanceAmount (com correção = valor do boleto)
+  companyId     Int?     // empresa do título (recibo: CNPJ/endereço)
+  companyName   String   @default("")
   atualizadoEm  DateTime @updatedAt
 
   @@id([billId, installmentId])
@@ -373,6 +375,7 @@ model PagamentoHistorico {
   operacao      String   // "Recebimento", "Adiantamento", outras baixas
   real          Boolean  // pagamento de verdade (recebimento/adiantamento), não baixa administrativa
   bruto         Decimal  @db.Decimal(18, 2)
+  seguro        Decimal  @default(0) @db.Decimal(18, 2)
   desconto      Decimal  @db.Decimal(18, 2)
   juros         Decimal  @db.Decimal(18, 2)
   multa         Decimal  @db.Decimal(18, 2)

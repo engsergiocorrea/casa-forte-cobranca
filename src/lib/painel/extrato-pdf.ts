@@ -15,7 +15,8 @@ const brl = (n: number | null | undefined) => (n == null ? "-" : n.toLocaleStrin
 const br = (ymd: string | null | undefined) => (ymd ? ymd.slice(0, 10).split("-").reverse().join("/") : "-");
 
 function situacao(p: any): [string, RGB] {
-  if (p.paga) return p.pagoEm ? (p.atrasoPagamento > 0 ? [`Paga c/ ${p.atrasoPagamento} d atraso`, AMBAR] : ["Paga em dia", VERDE]) : ["Paga", VERDE];
+  // Extrato vai para o cliente: parcela quitada aparece só como "Paga" (sem dias de atraso).
+  if (p.paga) return ["Paga", VERDE];
   const pre = p.parcial ? "Parcial · " : "";
   if (p.diasAteVencimento < 0) return [`${pre}${-p.diasAteVencimento} d em atraso`, VERMELHO];
   if (p.diasAteVencimento === 0) return [`${pre}Vence hoje`, AMBAR];
@@ -56,7 +57,7 @@ export async function gerarExtratoPdf(f: FichaCliente, tz = "America/Maceio"): P
     page.drawLine({ start: { x: M, y: y - 2 }, end: { x: M + 40, y: y - 2 }, thickness: 1, color: VERMELHO }); y -= 14;
     const r = c.resumo;
     if (r) {
-      txt(`${r.criadas} parcelas · ${r.pagas} pagas${r.pagasComAtraso ? ` (${r.pagasComAtraso} com atraso)` : ""} · ${r.emAberto} em aberto · ${r.vencidas} vencidas`, M, y, 8, reg, SECUNDARIO); y -= 11;
+      txt(`${r.criadas} parcelas · ${r.pagas} pagas · ${r.emAberto} em aberto · ${r.vencidas} vencidas`, M, y, 8, reg, SECUNDARIO); y -= 11;
       txt(`Valor do contrato ${brl(r.valorContrato)} · Pago ${brl(r.totalPago)} · Em aberto ${brl(r.saldoAberto)}${r.vencidas ? ` · Vencido ${brl(r.saldoVencido)}` : ""}`, M, y, 8, neg); y -= 14;
     }
     head();

@@ -4,7 +4,6 @@ import { env } from "../env";
 import { sienge } from "../sienge/client";
 import { normalizeCustomerPhones, normalizeInstallmentsList } from "../sienge/mapper";
 import { previewConfirmacao } from "../collection/messages";
-import { canSendTo } from "../safety";
 import { evolutionNumberExists } from "../whatsapp/evolution";
 import { enviarConfirmacao } from "../payments/envio";
 import { empresaDe, gerarComprovantePdf, nomeArquivoComprovante, type ParcelaRecibo } from "../payments/comprovante";
@@ -85,12 +84,10 @@ export async function confirmacaoManual(p: { customerId: number; itens: ItemRef[
   const base = { nome, telefone, prontas: prontas.map((x) => ({ billId: x.billId, installmentId: x.installmentId, contrato: x.contrato, parcela: x.parcela, valor: x.liquido, pagoEm: x.pagoEm })), bloqueados, avisos, mensagem: texto };
   if (p.acao === "previa" || !prontas.length || !telefone || !texto) return { ...base, enviado: false, status: p.acao === "previa" ? "PREVIA" : "NADA_A_ENVIAR" };
 
-  // Travas-mestras (as mesmas da confirmação automática).
-  const gate = canSendTo(telefone, {
-    appMode: e.APP_MODE, outboundEnabled: e.OUTBOUND_MESSAGING_ENABLED, dryRun: e.WHATSAPP_DRY_RUN,
-    allowAllProduction: e.WHATSAPP_ALLOW_ALL_PRODUCTION, allowlist: e.WHATSAPP_ALLOWLIST.split(",").map((x) => x.trim()).filter(Boolean),
-  });
-  if (!gate.allowed) return { ...base, enviado: false, status: "BLOQUEADA", detalhe: gate.reason };
+  // Envio MANUAL (pessoa viu a prévia e confirmou): só as travas-mestras, sem
+  // allowlist — mesma regra do envio manual de boleto/cobrança do painel.
+  const bloqueio = !e.OUTBOUND_MESSAGING_ENABLED ? "MASTER_SWITCH_OFF" : e.WHATSAPP_DRY_RUN ? "WHATSAPP_DRY_RUN" : null;
+  if (bloqueio) return { ...base, enviado: false, status: "BLOQUEADA", detalhe: bloqueio };
   if (await evolutionNumberExists(telefone) === false) return { ...base, enviado: false, status: "SEM_WHATSAPP", detalhe: "O celular do cadastro não tem WhatsApp" };
 
   // Registra ANTES de enviar (SENDING) — evita duplicar se dois pedidos chegarem juntos.

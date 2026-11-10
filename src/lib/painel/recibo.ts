@@ -24,7 +24,8 @@ export async function dadosRecibo(itens: ItemRef[]) {
   const parcelas: (ParcelaRecibo & { billId: number; installmentId: number; contrato: string })[] = [];
   const faltando: { billId: number; installmentId: number; motivo: string }[] = [];
   let empresa = empresaDe(null, ""), clienteNome = "", clientId: number | null = null;
-  for (const it of itens) {
+  for (const { billId, installmentId } of itens) {
+    const it = { billId, installmentId }; // só a chave — itens podem vir com outros campos
     const [c, baixas] = await Promise.all([
       db.parcelaCache.findUnique({ where: { billId_installmentId: it } }),
       db.pagamentoHistorico.findMany({ where: { ...it, real: true }, orderBy: [{ pagoEm: "desc" }, { seq: "desc" }] }),

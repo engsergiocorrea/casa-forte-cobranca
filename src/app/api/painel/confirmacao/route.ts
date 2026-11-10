@@ -12,5 +12,10 @@ export async function POST(req: NextRequest) {
   const customerId = Number(b?.customerId);
   const itens = (Array.isArray(b?.itens) ? b.itens : []).map((i: any) => ({ billId: Number(i?.billId), installmentId: Number(i?.installmentId) })).filter((i: any) => i.billId && i.installmentId).slice(0, 12);
   if (!customerId || !itens.length) return NextResponse.json({ erro: "Informe customerId e itens." }, { status: 400 });
-  return NextResponse.json(await confirmacaoManual({ customerId, itens, acao: b?.acao === "enviar" ? "enviar" : "previa", reenviar: b?.reenviar === true, usuario: a.usuario.startsWith("brain:") ? a.usuario : `painel:${a.usuario}` }));
+  try {
+    return NextResponse.json(await confirmacaoManual({ customerId, itens, acao: b?.acao === "enviar" ? "enviar" : "previa", reenviar: b?.reenviar === true, usuario: a.usuario.startsWith("brain:") ? a.usuario : `painel:${a.usuario}` }));
+  } catch (err) {
+    // Mostra o motivo na tela (sem stack); o registro fica como ERROR para nova tentativa.
+    return NextResponse.json({ erro: `Falha no envio: ${String((err as Error)?.message ?? err).slice(0, 200)}` }, { status: 500 });
+  }
 }

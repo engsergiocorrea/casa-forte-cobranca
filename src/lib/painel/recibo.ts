@@ -78,8 +78,14 @@ export async function confirmacaoManual(p: { customerId: number; itens: ItemRef[
   if (!telefone) avisos.push("Cliente sem celular válido no Sienge — não é possível enviar.");
   const primeiro = (nome || "cliente").trim().split(/\s+/)[0];
   const nomeMsg = primeiro.charAt(0).toLocaleUpperCase("pt-BR") + primeiro.slice(1).toLocaleLowerCase("pt-BR");
-  const k = new Map((await contratos()).map((c) => [c.billId, c]));
-  const imovelDe = (billId: number) => { const c = k.get(billId); return [c?.empreendimento, c?.unidades.join(", ")].filter(Boolean).join(" — ") || c?.numero || ""; };
+  // Imóvel: lista de contratos do Sienge; se o Sienge estiver lento, usa a nossa base.
+  const k = new Map((await contratos().catch(() => [])).map((c) => [c.billId, c]));
+  const imovelDe = (billId: number) => {
+    const c = k.get(billId);
+    if (c) return [c.empreendimento, c.unidades.join(", ")].filter(Boolean).join(" — ") || c.numero;
+    const x = prontas.find((p) => p.billId === billId);
+    return x ? [x.centroCusto.replace(/^\s*\d+\s*-\s*/, ""), x.unidade].filter(Boolean).join(" — ") : "";
+  };
   const texto = prontas.length ? previewConfirmacao(nomeMsg, prontas.map((x) => ({ imovel: imovelDe(x.billId), vencimento: x.vencimento, valor: brl(x.liquido), pagoEm: br(x.pagoEm) }))) : null;
   const base = { nome, telefone, prontas: prontas.map((x) => ({ billId: x.billId, installmentId: x.installmentId, contrato: x.contrato, parcela: x.parcela, valor: x.liquido, pagoEm: x.pagoEm })), bloqueados, avisos, mensagem: texto };
   if (p.acao === "previa" || !prontas.length || !telefone || !texto) return { ...base, enviado: false, status: p.acao === "previa" ? "PREVIA" : "NADA_A_ENVIAR" };
@@ -95,9 +101,16 @@ export async function confirmacaoManual(p: { customerId: number; itens: ItemRef[
     const data = { clientId: p.customerId, contrato: x.contrato, paidDate: new Date(`${x.pagoEm}T12:00:00Z`), valor: new Prisma.Decimal(x.liquido), movementIds: "", phone: telefone, status: "SENDING", motivo: `MANUAL ${p.usuario}` };
     await db.paymentConfirmation.upsert({ where: { billId_installmentId: { billId: x.billId, installmentId: x.installmentId } }, create: { billId: x.billId, installmentId: x.installmentId, ...data, attempts: 1 }, update: { ...data, attempts: { increment: 1 } } });
   }
-  const recibo = await reciboPdf(prontas);
-  const envio = await enviarConfirmacao({ to: telefone, texto, pdfEnabled: true, fileName: recibo.nomeArquivo ?? "Comprovante Casa Forte.pdf", gerarPdf: async () => { if (!recibo.pdf) throw new Error("sem recibo"); return recibo.pdf; } });
   const where = { OR: prontas.map((x) => ({ billId: x.billId, installmentId: x.installmentId })) };
+  let envio;
+  try {
+    const recibo = await reciboPdf(prontas);
+    envio = await enviarConfirmacao({ to: telefone, texto, pdfEnabled: true, fileName: recibo.nomeArquivo ?? "Comprovante Casa Forte.pdf", gerarPdf: async () => { if (!recibo.pdf) throw new Error("sem recibo"); return recibo.pdf; } });
+  } catch (err) {
+    const msg = String((err as Error)?.message ?? err).slice(0, 300);
+    await db.paymentConfirmation.updateMany({ where, data: { status: "ERROR", detail: `MANUAL: ${msg}` } }).catch(() => null);
+    return { ...base, enviado: false, status: "ERRO", detalhe: msg };
+  }
   const r = envio.result;
   if (r.success) await db.paymentConfirmation.updateMany({ where, data: { status: "SENT", messageId: r.messageId, sentAt: new Date(), detail: envio.pdfErro ? `PDF_FALHOU: ${envio.pdfErro}` : null } });
   else await db.paymentConfirmation.updateMany({ where, data: { status: String(r.error ?? "").startsWith("Conexão Evolution") ? "UNCERTAIN" : "ERROR", detail: String(r.error ?? "").slice(0, 400) } });

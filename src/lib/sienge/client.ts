@@ -71,7 +71,8 @@ export const sienge = {
   getPaymentSlip: (billId: number, installmentId: number) => request<any>(`/payment-slip-notification?billReceivableId=${billId}&installmentId=${installmentId}`),
   // Listagens read-only (paginadas) para a página de consultas em staging.
   listCustomers: (limit = 5, offset = 0) => request<any>(`/customers?limit=${limit}&offset=${offset}`),
-  listSalesContracts: (limit = 5, offset = 0) => request<any>(`/sales-contracts?limit=${limit}&offset=${offset}`),
+  // A 1ª leitura da lista às vezes leva 10–30 s no Sienge.
+  listSalesContracts: (limit = 5, offset = 0) => request<any>(`/sales-contracts?limit=${limit}&offset=${offset}`, { signal: AbortSignal.timeout(45_000) }),
   listUnits: (limit = 5, offset = 0) => request<any>(`/units?limit=${limit}&offset=${offset}`),
   // Leitura genérica (só GET) dos recursos REST liberados — usada pelas consultas do Brain.
   listar: (recurso: "enterprises" | "units" | "checking-accounts" | "cost-centers" | "customers", limit = 200, offset = 0) => request<any>(`/${recurso}?limit=${limit}&offset=${offset}`, { signal: AbortSignal.timeout(45_000) }),

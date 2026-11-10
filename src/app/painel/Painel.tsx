@@ -102,6 +102,46 @@ function ModalEnvio({ pedidos, onClose }: { pedidos: Pedido[]; onClose: (enviou:
   </div>;
 }
 
+// Confirmação de pagamento sob demanda (texto + recibo em PDF ao cliente).
+// Mesma regra do resto do painel: PRÉVIA (revalida quitação no Sienge) → confirmar.
+type PedidoConfirmacao = { customerId: number; nome: string; item: { billId: number; installmentId: number }; parcela: string; reenviar: boolean };
+function ModalConfirmacao({ p, onClose }: { p: PedidoConfirmacao; onClose: (enviou: boolean) => void }) {
+  const [prev, setPrev] = useState<any>(null); const [res, setRes] = useState<any>(null);
+  const [erro, setErro] = useState(""); const [enviando, setEnviando] = useState(false);
+  const corpo = (acao: string) => JSON.stringify({ acao, customerId: p.customerId, itens: [p.item], reenviar: p.reenviar });
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    api("/api/painel/confirmacao", { method: "POST", body: corpo("previa") }).then(setPrev).catch((e) => setErro(e.message));
+    return () => { document.body.style.overflow = ""; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  async function confirmar() {
+    setEnviando(true);
+    try { setRes(await api("/api/painel/confirmacao", { method: "POST", body: corpo("enviar") })); } catch (e) { setRes({ enviado: false, status: "ERRO", detalhe: (e as Error).message }); }
+    setEnviando(false);
+  }
+  const pode = prev?.prontas?.length && prev?.telefone && prev?.mensagem;
+  return <div className="cf-modal" onClick={() => !enviando && onClose(!!res?.enviado)}>
+    <div className="cf-modal-in" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className="cf-modal-cab"><h2>{p.reenviar ? "Reenviar confirmação de pagamento" : "Enviar confirmação de pagamento"}</h2><p className="muted">{prev?.nome || p.nome} · parcela {p.parcela} · com recibo em PDF</p></div>
+      <div className="cf-modal-corpo">
+        {erro && <p className="erro">{erro}</p>}
+        {!prev && !erro && <p className="muted">Conferindo no Sienge (quitação e telefone)…</p>}
+        {prev && !res && <>
+          <p className="cf-fone">WhatsApp: <b>{prev.telefone || "sem celular no Sienge"}</b></p>
+          {prev.avisos?.map((a: string, k: number) => <div key={k} className="cf-banner teste">{a}</div>)}
+          {prev.bloqueados?.map((b: any, k: number) => <div key={k} className="cf-banner erro">{b.motivo}</div>)}
+          {prev.mensagem ? <div className="cf-msg">{prev.mensagem}</div> : <p className="erro">Nada a enviar.</p>}
+        </>}
+        {res && <div className={`cf-banner ${res.enviado ? "ok" : "erro"}`}>{res.enviado ? "Confirmação enviada ✓ (o WhatsApp aceitou a mensagem)" : `${res.status}${res.detalhe ? ` — ${res.detalhe}` : ""}`}</div>}
+      </div>
+      <div className="cf-modal-rodape">
+        {!res && <button className="bt verm grande" disabled={!pode || enviando} onClick={confirmar}>{enviando ? "Enviando…" : p.reenviar ? "Confirmar e reenviar" : "Confirmar e enviar"}</button>}
+        <button className="bt leve grande" disabled={enviando} onClick={() => onClose(!!res?.enviado)}>{res ? "Fechar" : "Cancelar"}</button>
+      </div>
+    </div>
+  </div>;
+}
+
 // ---------- Peças de layout ----------
 function Kpi({ i, n, rot, tom }: { i: string; n: number; rot: string; tom?: "ok" | "alerta" }) {
   return <div className={`cf-card ${tom ?? ""}`}><span className="cf-card-ic"><Icone n={i} t={18} /></span><b>{n}</b><span className="cf-card-rot">{rot}</span></div>;
@@ -345,6 +385,7 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
   const [modal, setModal] = useState<Pedido[] | null>(null);
   const [filtro, setFiltro] = useState<FiltroParcelas>("todas");
   const [atualizando, setAtualizando] = useState<number | null>(null);
+  const [confirmacao, setConfirmacao] = useState<PedidoConfirmacao | null>(null);
   const [pausaForm, setPausaForm] = useState(false);
   const carregar = useCallback(() => { setD(null); api(`/api/painel/cliente?customerId=${customerId}`).then(setD).catch((e) => setErro(e.message)); }, [customerId]);
   useEffect(carregar, [carregar]);
@@ -384,8 +425,18 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
               !p.paga ? <input type="checkbox" aria-label="Marcar parcela" checked={!!marcadas[chave(p)]} onChange={() => alternar(p)} /> : null,
               <span key="p" onClick={() => alternar(p)}>{p.parcela ? `Parcela ${p.parcela}` : `Parcela #${p.installmentId}`} <span className="muted">{p.tipoParc ?? ""}</span></span>,
               br(p.vencimento),
-              brl(p.valorOriginal ?? (p.paga ? p.valorPago : p.saldo)),
-              p.pagoEm ? <span key="pg">{br(p.pagoEm)} · {brl(p.valorPago)}{p.jurosMulta ? ` (+${brl(p.jurosMulta)} juros/multa)` : ""} <a className="cf-link-mini" href={`/api/painel/recibo/pdf?itens=${p.billId}:${p.installmentId}`} download>Recibo</a></span> : "—",
+              // Valor ATUALIZADO: paga → o que foi pago; em aberto → saldo com correção (= boleto) + o que já foi pago, se parcial.
+              <span key="v" title={p.valorOriginal ? `Valor original: ${brl(p.valorOriginal)}` : undefined}>{brl(p.paga ? (p.valorPago ?? p.valorOriginal) : p.saldo + (p.valorPago ?? 0))}</span>,
+              p.pagoEm ? (() => {
+                const conf = d.confirmacoes.find((x: any) => x.billId === p.billId && x.installmentId === p.installmentId);
+                const enviada = conf?.status === "SENT";
+                return <span key="pg">{br(p.pagoEm)} · {brl(p.valorPago)}{p.jurosMulta ? ` (+${brl(p.jurosMulta)} juros/multa)` : ""}
+                  <span className="cf-pg-acoes">
+                    <a className="cf-link-mini" href={`/api/painel/recibo/pdf?itens=${p.billId}:${p.installmentId}`} download>Recibo</a>
+                    <button className="cf-link-mini" onClick={() => setConfirmacao({ customerId, nome: d.nome, item: { billId: p.billId, installmentId: p.installmentId }, parcela: p.parcela ?? `#${p.installmentId}`, reenviar: enviada })}>{enviada ? "Reenviar confirmação" : "Enviar confirmação"}</button>
+                    {conf && <span className={`cf-st ${enviada ? "ok" : "er"}`} title={conf.detalhe ?? ""}>{enviada ? `Confirmação enviada${conf.enviadaEm ? ` ${br(String(conf.enviadaEm).slice(0, 10))}` : ""}` : `Confirmação: ${conf.status}`}</span>}
+                  </span></span>;
+              })() : "—",
               p.paga ? "—" : brl(p.saldo),
               situacaoParcela(p),
               p.paga ? "—" : p.boletoGerado ? <span className="cf-st ok">Gerado</span> : <span className="cf-st er">Sem boleto</span>,
@@ -410,6 +461,7 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
       </div>
     </div>
     {modal && <ModalEnvio pedidos={modal} onClose={(enviou) => { setModal(null); if (enviou) { setMarcadas({}); carregar(); } }} />}
+    {confirmacao && <ModalConfirmacao p={confirmacao} onClose={(enviou) => { setConfirmacao(null); if (enviou) carregar(); }} />}
   </div>;
 }
 

@@ -70,7 +70,7 @@ export async function fichaCliente(customerId: number) {
   return {
     customerId, nome, telefone, contratos: fichas,
     comunicacoes: comunicacoes.map((c) => ({ tipo: c.tipo, etapa: c.etapa, status: c.status, motivo: c.motivo, detalhe: c.detalhe, contrato: c.contrato, parcela: c.parcela, vencimento: c.dueDate?.toISOString().slice(0, 10) ?? null, valor: c.valor != null ? Number(c.valor) : null, solicitadoPor: c.solicitadoPor, enviadaEm: c.enviadaEm, atualizadaEm: c.atualizadaEm, conteudo: c.conteudo })),
-    confirmacoes: confirmacoes.map((c) => ({ contrato: c.contrato, installmentId: c.installmentId, status: c.status, valor: Number(c.valor), pagoEm: c.paidDate.toISOString().slice(0, 10), enviadaEm: c.sentAt, detalhe: c.detail })),
+    confirmacoes: confirmacoes.map((c) => ({ contrato: c.contrato, billId: c.billId, installmentId: c.installmentId, status: c.status, valor: Number(c.valor), pagoEm: c.paidDate.toISOString().slice(0, 10), enviadaEm: c.sentAt, detalhe: c.detail })),
     pausas: pausas.map((p) => ({ id: p.id, tipos: p.tipos, ate: p.ate?.toISOString().slice(0, 10) ?? null, motivo: p.motivo, contrato: p.contrato })),
   };
 }

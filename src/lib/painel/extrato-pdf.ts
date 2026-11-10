@@ -66,7 +66,7 @@ export async function gerarExtratoPdf(f: FichaCliente, tz = "America/Maceio"): P
       const [sit, cor] = situacao(p);
       txt(p.parcela ? `${p.parcela} ${p.tipoParc ?? ""}` : `#${p.installmentId}`, cols[0].x, y - 9.5, 7.5, reg);
       txt(br(p.vencimento), cols[1].x, y - 9.5, 7.5, reg);
-      dir(brl(p.valorOriginal ?? (p.paga ? p.valorPago : p.saldo)), cols[2].x, y - 9.5, 7.5, reg);
+      dir(brl(p.paga ? (p.valorPago ?? p.valorOriginal) : p.saldo + (p.valorPago ?? 0)), cols[2].x, y - 9.5, 7.5, reg);
       txt(p.pagoEm ? `${br(p.pagoEm)} · ${brl(p.valorPago)}${p.jurosMulta ? ` (+${brl(p.jurosMulta)})` : ""}` : "-", cols[3].x, y - 9.5, 7.5, reg, p.pagoEm ? TEXTO : SUAVE);
       dir(p.paga ? "-" : brl(p.saldo), cols[4].x, y - 9.5, 7.5, p.paga ? reg : neg, p.paga ? SUAVE : TEXTO);
       txt(sit, cols[5].x, y - 9.5, 7.2, neg, cor);

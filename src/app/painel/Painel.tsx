@@ -379,6 +379,33 @@ function ResumoContrato({ r }: { r: any }) {
   </div>;
 }
 
+// Dados cadastrais do Sienge (CPF, RG, telefones, endereços…): abre sob demanda.
+function DadosCadastrais({ customerId }: { customerId: number }) {
+  const [aberto, setAberto] = useState(false); const [c, setC] = useState<any>(null); const [erro, setErro] = useState("");
+  useEffect(() => { if (aberto && !c) api(`/api/painel/cliente-cadastro?customerId=${customerId}`).then(setC).catch((e) => setErro(e.message)); }, [aberto, c, customerId]);
+  const L = ({ r, v }: { r: string; v: ReactNode }) => (v == null || v === "" ? null : <div className="cf-cad-l"><span>{r}</span><b>{v}</b></div>);
+  return <section className="cf-box">
+    <button className="cf-hist-tog" onClick={() => setAberto((x) => !x)} aria-expanded={aberto}><Icone n="clientes" t={16} /> Dados cadastrais (Sienge) <span aria-hidden="true">{aberto ? "▴" : "▾"}</span></button>
+    {aberto && <div className="cf-cad">
+      {erro && <div className="cf-banner erro">{erro}</div>}
+      {!c && !erro && <p className="muted">Lendo o cadastro no Sienge…</p>}
+      {c && <>
+        <div className="cf-cad-g">
+          <L r="Nome" v={c.nome} /><L r="Nome social" v={c.nomeSocial} /><L r="Pessoa" v={c.tipoPessoa} /><L r="CPF/CNPJ" v={c.cpfCnpj} />
+          <L r="RG" v={[c.rg, c.rgOrgao, c.rgEmissao && `emitido ${c.rgEmissao}`].filter(Boolean).join(" · ")} /><L r="Doc. estrangeiro" v={c.documentoInternacional} />
+          <L r="Nascimento" v={c.nascimento} /><L r="Naturalidade" v={c.naturalidade} /><L r="Nacionalidade" v={c.nacionalidade} /><L r="Sexo" v={c.sexo} />
+          <L r="Estado civil" v={c.estadoCivil} /><L r="Regime de bens" v={c.regimeBens} /><L r="Casamento" v={c.dataCasamento} /><L r="Profissão" v={c.profissao} />
+          <L r="Pai" v={c.pai} /><L r="Mãe" v={c.mae} /><L r="E-mail" v={c.email} />
+        </div>
+        {c.telefones.length > 0 && <><h3>Telefones</h3>{c.telefones.map((t: any, i: number) => <div key={i} className="cf-cad-l"><span>{t.tipo ?? "Telefone"}{t.principal ? " · principal" : ""}{t.whatsapp ? " · WhatsApp" : ""}</span><b>{t.numero}</b></div>)}</>}
+        {c.enderecos.length > 0 && <><h3>Endereços</h3>{c.enderecos.map((a: any, i: number) => <div key={i} className="cf-cad-l"><span>{a.tipo ?? "Endereço"}{a.correspondencia ? " · correspondência" : ""}</span><b>{[a.logradouro, a.complemento, a.bairro, [a.cidade, a.uf].filter(Boolean).join("/"), a.cep].filter(Boolean).join(" · ")}</b></div>)}</>}
+        {c.conjuge && <><h3>Cônjuge</h3><div className="cf-cad-g"><L r="Nome" v={c.conjuge.nome} /><L r="CPF" v={c.conjuge.cpf} /><L r="RG" v={c.conjuge.rg} /><L r="Nascimento" v={c.conjuge.nascimento} /><L r="Profissão" v={c.conjuge.profissao} /><L r="E-mail" v={c.conjuge.email} /></div></>}
+        <p className="muted" style={{ marginTop: 10, fontSize: ".78rem" }}>Cadastro no Sienge atualizado em {c.atualizadoEm ?? "—"}. Dados pessoais: uso interno (LGPD).</p>
+      </>}
+    </div>}
+  </section>;
+}
+
 function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void }) {
   const [d, setD] = useState<any>(null); const [erro, setErro] = useState("");
   const [marcadas, setMarcadas] = useState<Record<string, boolean>>({});
@@ -413,6 +440,7 @@ function Ficha({ customerId, voltar }: { customerId: number; voltar: () => void 
       <div className="cf-seg" role="tablist" aria-label="Filtrar parcelas">{FILTROS.map(([k, r]) => <button key={k} role="tab" aria-selected={filtro === k} className={filtro === k ? "ativo" : ""} onClick={() => setFiltro(k)}>{r}</button>)}</div>
     </div>
     {pausaForm && <FormPausa contrato={d.contratos[0]?.numero} onDone={() => { setPausaForm(false); carregar(); }} />}
+    <DadosCadastrais customerId={customerId} />
     {d.contratos.map((c: any) => {
       const ps = c.parcelas.filter((p: any) => filtro === "todas" || (filtro === "pagas" ? p.paga : filtro === "vencidas" ? !p.paga && p.diasAteVencimento < 0 : !p.paga));
       return <section className="cf-box" key={c.numero}>

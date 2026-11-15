@@ -279,3 +279,9 @@ button{padding:10px 16px;border-radius:10px;border:1px solid #e5e5df;background:
 .cf-bx-doc:hover{background:linear-gradient(135deg,rgba(45,212,255,.28),rgba(59,107,255,.32))}
 .cf-pg-acoes{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-left:8px}
 .cf .cf-link-mini{background:none;border:0;padding:0;font:inherit;cursor:pointer;font-size:.78rem;font-weight:700;color:var(--vermelho);text-decoration:none;white-space:nowrap}.cf-link-mini:hover{text-decoration:underline}
+
+/* Dados cadastrais */
+.cf-cad{margin-top:8px}.cf-cad h3{font-size:.85rem;margin:14px 0 6px;color:var(--sec)}
+.cf-cad-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:2px 18px}
+.cf-cad-l{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--borda);font-size:.88rem}
+.cf-cad-l span{color:var(--suave)}.cf-cad-l b{font-weight:600;text-align:right;overflow-wrap:anywhere}

@@ -100,6 +100,7 @@ describe("régua v2 — canal Evolution", () => {
     expect(r.sucesso).toBe(true);
     expect(d.baixarPdf).toHaveBeenCalledWith("https://sienge/b0");
     expect(d.sendDocument).toHaveBeenCalledWith(expect.objectContaining({ mediaUrl: "JVBERi0x", fileName: "Boleto Casa Forte - parcela 1-60.pdf", caption: expect.stringContaining("Boleto disponível") }));
+    expect(d.sendDocument.mock.calls[0][0].caption).not.toContain("https://sienge/"); // link expira em 5 min: sai quando o PDF vai junto
     expect(d.sendText).not.toHaveBeenCalled();
   });
   it("PDF não baixou → sai só o texto com o link (sem duplicar)", async () => {

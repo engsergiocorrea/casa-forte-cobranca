@@ -48,7 +48,31 @@ async function postSienge(path: string, payload: unknown): Promise<{ status: num
   return { status: r.status, id, location };
 }
 
+// PUT/PATCH/POST de alteração (escrita). Gate SIENGE_WRITE_DRY_RUN fica em
+// lib/painel/sienge-escrita.ts — nunca chamar daqui sem passar por lá.
+async function alterarSienge(method: "PUT" | "PATCH" | "POST", path: string, payload: unknown): Promise<{ status: number }> {
+  const r = await fetch(`${baseUrl()}${path}`, {
+    method,
+    headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: authHeader() },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(45_000),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    let msg = t.slice(0, 300);
+    try { const j = JSON.parse(t); msg = j?.clientMessage || j?.developerMessage || msg; } catch { /* texto */ }
+    throw new Error(`Sienge ${r.status}: ${msg}`);
+  }
+  return { status: r.status };
+}
+
 export const sienge = {
+  // Escritas validadas na documentação oficial (11/2026).
+  atualizarTelefones: (customerId: number, phones: unknown[]) => alterarSienge("PUT", `/customers/${customerId}/phones`, { phones }),
+  atualizarEndereco: (customerId: number, tipo: "R" | "C", endereco: unknown) => alterarSienge("PUT", `/customers/${customerId}/addresses/${tipo}`, endereco),
+  enviarBoletoEmail: (ticket: { receivableBillId: number; installmentId: number; emailCustomer: string; emailTitle: string; emailBody: string }) => alterarSienge("POST", `/payment-slip-notification`, ticket),
+  alterarVencimento: (billId: number, installmentId: number, newDueDate: string) => alterarSienge("PATCH", `/accounts-receivable/receivable-bills/${billId}/installments/${installmentId}/change-due-date`, { newDueDate }),
   getCustomer: (id: number) => request<any>(`/customers/${id}`),
   // Busca cliente por CPF para deduplicar antes de criar. Filtra pelo CPF exato
   // no resultado (se a API ignorar o parâmetro, ainda assim só casa o exato).

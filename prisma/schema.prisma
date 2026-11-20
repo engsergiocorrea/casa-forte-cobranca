@@ -392,3 +392,22 @@ model HistoricoSync {
   billId         Int      @id
   sincronizadoEm DateTime
 }
+
+// Toda alteração pedida ao Sienge pelo painel/Brain (com antes/depois). Só
+// executa com SIENGE_WRITE_DRY_RUN=false; senão fica registrada como DRY_RUN.
+model AlteracaoSienge {
+  id            String   @id @default(cuid())
+  operacao      String   // TELEFONES | ENDERECO | BOLETO_EMAIL | VENCIMENTO
+  customerId    Int?
+  billId        Int?
+  installmentId Int?
+  antes         Json?
+  depois        Json
+  status        String   // DRY_RUN | OK | ERRO
+  detalhe       String?
+  solicitadoPor String
+  criadaEm      DateTime @default(now())
+
+  @@index([customerId])
+  @@index([billId])
+}

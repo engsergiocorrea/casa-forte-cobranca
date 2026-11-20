@@ -60,10 +60,14 @@ export function criarCanalEvolution(deps: EvolutionDeps = DEPS): CanalWhatsApp {
         : [];
       const prontos = pdfs.filter((p): p is { nome: string; base64: string } => Boolean(p?.base64));
 
+      // O link do boleto do Sienge expira em 5 minutos: com o PDF anexado, ele
+      // sai do texto (fica a linha digitável). Sem PDF, o link continua.
+      const semLink = (m: MensagemPadrao) => renderTexto({ ...m, itens: m.itens.map((i) => ({ ...i, boletoUrl: null })) });
       if (msg.itens.length === 1 && prontos.length === 1) {
-        return resultado(await deps.sendDocument({ to: para, mediaUrl: prontos[0].base64, fileName: prontos[0].nome, caption: texto }));
+        return resultado(await deps.sendDocument({ to: para, mediaUrl: prontos[0].base64, fileName: prontos[0].nome, caption: semLink(msg) }));
       }
-      const r = resultado(await deps.sendText({ to: para, text: texto }));
+      const todosComPdf = prontos.length > 0 && prontos.length === msg.itens.filter((i) => i.boletoUrl).length;
+      const r = resultado(await deps.sendText({ to: para, text: todosComPdf ? semLink(msg) : texto }));
       if (r.sucesso) for (const p of prontos) await deps.sendDocument({ to: para, mediaUrl: p.base64, fileName: p.nome }).catch(() => null);
       return r;
     },

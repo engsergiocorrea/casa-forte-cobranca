@@ -22,7 +22,7 @@ describe("escrita no Sienge", () => {
     const r = await executarAlteracao(pedido, "brain:sergio");
     expect(r).toMatchObject({ executado: false, status: "MODO_TESTE" });
     expect(atualizarTelefones).not.toHaveBeenCalled();
-    expect(criar.mock.calls.at(-1)[0].data).toMatchObject({ operacao: "TELEFONES", status: "DRY_RUN", solicitadoPor: "brain:sergio" });
+    expect(criar.mock.calls.at(-1)![0].data).toMatchObject({ operacao: "TELEFONES", status: "DRY_RUN", solicitadoPor: "brain:sergio" });
   });
   it("liberado: envia todos os telefones no payload oficial", async () => {
     env.SIENGE_WRITE_DRY_RUN = false;

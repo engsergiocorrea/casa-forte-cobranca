@@ -32,6 +32,8 @@ const emMock = () => typeof window !== "undefined" && window.location.hostname =
 async function api<T = any>(url: string, init?: RequestInit): Promise<T> {
   if (emMock()) { const { mockApi } = await import("./mock"); await new Promise((r) => setTimeout(r, 150)); return mockApi(url, init) as T; }
   const r = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+  // Sessão expirada → volta para a tela de login (e depois para onde estava).
+  if (r.status === 401 && !url.startsWith("/api/painel/brain")) { window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`; return new Promise<T>(() => {}); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j?.erro ?? `Erro ${r.status}`);
   return j as T;
@@ -760,12 +762,14 @@ export default function Painel() {
         <span className="cf-brain-orb pequeno"><Robo t={34} /></span>
         <span><b>Casa Forte Brain</b><small>Assistente com IA</small></span>
       </button>
+      <form className="cf-side-sair" action="/api/logout" method="post"><button type="submit">Sair</button></form>
     </aside>
     <header className="cf-top">
       <div className="cf-top-in">
         <img className="cf-top-logo" src="/marca/logo-claro.png" alt="Casa Forte" width={600} height={421} />
         <span className="cf-top-tit">Financeiro</span>
         <button className="cf-top-brain" onClick={() => setBrain(true)} aria-label="Casa Forte Brain"><Robo t={22} /> Brain</button>
+        <form className="cf-top-sair" action="/api/logout" method="post"><button type="submit" aria-label="Sair">Sair</button></form>
       </div>
       <nav className="cf-nav" aria-label="Seções">{ABAS.map(([k, r, i]) => <button key={k} className={aba === k ? "ativo" : ""} aria-current={aba === k ? "page" : undefined} onClick={() => ir(k)}><Icone n={i} t={16} /> {r}</button>)}</nav>
     </header>

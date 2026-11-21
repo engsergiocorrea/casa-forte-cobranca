@@ -17,6 +17,10 @@ export function usuarioPainel(req: NextRequest, opts: { brain?: boolean } = {}):
     return { usuario: `brain:${ator || "desconhecido"}` };
   }
   if (!usuariosConfigurados().size) return { erro: NextResponse.json({ erro: "Painel sem usuários: defina DASHBOARD_USERS no Railway." }, { status: 403 }) };
+  // Sessão da tela de login: o middleware validou o cookie e preencheu este
+  // cabeçalho (ele sempre apaga o que vier do navegador).
+  const daSessao = req.headers.get("x-cf-usuario");
+  if (daSessao && usuariosConfigurados().has(daSessao)) return { usuario: daSessao };
   const u = usuarioDoHeader(auth);
   if (!u) return { erro: NextResponse.json({ erro: "Não autenticado." }, { status: 401 }) };
   return { usuario: u };

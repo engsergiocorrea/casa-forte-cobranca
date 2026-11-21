@@ -285,3 +285,37 @@ button{padding:10px 16px;border-radius:10px;border:1px solid #e5e5df;background:
 .cf-cad-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:2px 18px}
 .cf-cad-l{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--borda);font-size:.88rem}
 .cf-cad-l span{color:var(--suave)}.cf-cad-l b{font-weight:600;text-align:right;overflow-wrap:anywhere}
+
+/* ---------- Tela de login ---------- */
+.lg{position:relative;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px;background:#0E1014;color:#F4F6FB;font-family:Inter,ui-sans-serif,system-ui;overflow:hidden;-webkit-font-smoothing:antialiased}
+.lg-aura{position:absolute;inset:0;pointer-events:none;background:radial-gradient(45% 55% at 20% 15%,rgba(255,107,61,.28),transparent 70%),radial-gradient(40% 50% at 85% 85%,rgba(59,107,255,.22),transparent 70%),radial-gradient(30% 40% at 70% 20%,rgba(45,212,255,.12),transparent 70%)}
+.lg-card{position:relative;width:100%;max-width:400px;padding:32px 28px;border-radius:28px;background:linear-gradient(180deg,rgba(28,31,44,.82),rgba(14,16,24,.9));border:1px solid rgba(255,255,255,.12);box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 40px 120px -20px rgba(0,0,0,.65);backdrop-filter:blur(30px) saturate(170%);-webkit-backdrop-filter:blur(30px) saturate(170%);animation:lgEntra .5s cubic-bezier(.32,.72,0,1) both}
+@keyframes lgEntra{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+.lg-logo{display:block;width:120px;height:auto;margin:0 auto 18px}
+.lg h1{margin:0;text-align:center;font-size:1.6rem;font-weight:700;letter-spacing:-.025em;color:#fff}
+.lg-sub{margin:6px 0 24px;text-align:center;font-size:.9rem;color:rgba(235,240,255,.6)}
+.lg-campo{display:block;margin-bottom:14px}
+.lg-campo>span{display:block;font-size:.8rem;font-weight:600;color:rgba(235,240,255,.7);margin-bottom:6px}
+.lg-campo input,.lg-senha{width:100%;font:inherit;font-size:16px;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;outline:none;transition:border-color .15s,box-shadow .15s;box-sizing:border-box}
+.lg-campo input:focus,.lg-senha:focus-within{border-color:rgba(255,107,61,.7);box-shadow:0 0 0 4px rgba(255,107,61,.18)}
+.lg-senha{display:flex;align-items:center;padding:0 6px 0 0}
+.lg-senha input{border:0;background:transparent;box-shadow:none!important;flex:1;min-width:0}
+.lg-senha button{flex-shrink:0;border:0;background:rgba(255,255,255,.08);color:rgba(235,240,255,.8);font:inherit;font-size:.78rem;font-weight:600;border-radius:10px;padding:6px 10px;cursor:pointer}
+.lg-lembrar{display:flex;align-items:center;gap:10px;margin:4px 0 16px;font-size:.85rem;color:rgba(235,240,255,.75);cursor:pointer}
+.lg-lembrar input{width:18px;height:18px;accent-color:#E8390E}
+.lg-erro{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:rgba(255,99,71,.12);border:1px solid rgba(255,99,71,.3);color:#FFC2B4;font-size:.88rem}
+.lg-entrar{width:100%;min-height:50px;border:0;border-radius:14px;font:inherit;font-size:1rem;font-weight:700;color:#fff;cursor:pointer;background:linear-gradient(135deg,#FF6B3D,#E8390E);box-shadow:0 10px 28px -10px rgba(232,57,14,.8);transition:transform .1s,opacity .2s}
+.lg-entrar:active:not(:disabled){transform:scale(.97)}
+.lg-entrar:disabled{opacity:.5;cursor:default}
+.lg-rodape{margin:18px 0 0;text-align:center;font-size:.75rem;color:rgba(235,240,255,.45)}
+.lg-copy{position:relative;margin-top:22px;font-size:.72rem;color:rgba(235,240,255,.35);text-align:center}
+@media(prefers-reduced-motion:reduce){.lg-card{animation:none}}
+.cf-side-sair{margin-top:10px}
+.cf-side-sair button,.cf-top-sair button{border:0;background:transparent;font:inherit;font-size:.85rem;font-weight:600;color:rgba(235,240,255,.55);cursor:pointer;padding:8px 12px;border-radius:10px}
+.cf-side-sair button{width:100%;text-align:left}
+.cf-side-sair button:hover,.cf-top-sair button:hover{background:rgba(255,255,255,.06);color:#fff}
+.cf-top-sair{margin-left:6px}
+.lg *,.lg *::before,.lg *::after{box-sizing:border-box}
+.lg-campo input{display:block}
+.lg .lg-lembrar input{flex:none;width:18px;height:18px;min-width:0;margin:0;padding:0}
+@media(max-width:380px){.lg-card{padding:26px 18px}}

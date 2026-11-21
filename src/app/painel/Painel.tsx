@@ -181,10 +181,11 @@ function TextoBrain({ t }: { t: string }) {
 const primeiroNome = (u?: string) => (u ? u.charAt(0).toUpperCase() + u.slice(1) : "");
 const Robo = ({ t, className }: { t: number; className?: string }) => <img src={t > 96 ? "/marca/brain-512.png" : "/marca/brain-192.png"} alt="" width={t} height={t} className={className} draggable={false} />;
 
-function BrainModal({ onClose }: { onClose: () => void }) {
+function BrainModal({ onClose, perguntaInicial = "" }: { onClose: () => void; perguntaInicial?: string }) {
   const [estado, setEstado] = useState<{ configurado: boolean; liberado: boolean; usuario?: string } | null>(null);
   const [msgs, setMsgs] = useState<MsgBrain[]>(() => { try { return JSON.parse(sessionStorage.getItem(CHAVE_BRAIN) ?? "[]"); } catch { return []; } });
-  const [texto, setTexto] = useState("");
+  // Vindo da Central Casa Forte (?pergunta=…): a pergunta chega escrita; a pessoa confere e envia.
+  const [texto, setTexto] = useState(perguntaInicial);
   const [pensando, setPensando] = useState(false);
   const [saindo, setSaindo] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
@@ -741,6 +742,13 @@ export default function Painel() {
   const [aba, setAba] = useState<Aba>("hoje");
   const [cliente, setCliente] = useState<number | null>(null);
   const [brain, setBrain] = useState(false);
+  const [perguntaInicial, setPerguntaInicial] = useState("");
+  // Central Casa Forte (sistemas.casaforteinc.com.br) abre o painel com ?brain=1 e/ou ?pergunta=…
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const p = (q.get("pergunta") ?? "").slice(0, 500);
+    if (q.get("brain") === "1" || p) { setPerguntaInicial(p); setBrain(true); }
+  }, []);
   const ir = (k: Aba) => { setAba(k); if (k !== "clientes") setCliente(null); window.scrollTo({ top: 0 }); };
   useEffect(() => { const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setBrain(true); } }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, []);
   return <div className="cf">
@@ -780,6 +788,6 @@ export default function Painel() {
         <Rodape />
       </main>
     </div>
-    {brain && <BrainModal onClose={() => setBrain(false)} />}
+    {brain && <BrainModal perguntaInicial={perguntaInicial} onClose={() => { setBrain(false); setPerguntaInicial(""); }} />}
   </div>;
 }

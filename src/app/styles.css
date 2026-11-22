@@ -1,11 +1,11 @@
-:root{font-family:Inter,ui-sans-serif,system-ui;background:#f5f5f2;color:#161616}*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:0 auto;padding:44px 24px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px}small{letter-spacing:.18em;font-weight:800}h1{margin:.25rem 0;font-size:2rem}h2{margin-top:0}.pill{padding:9px 12px;border-radius:999px;font-size:.75rem;font-weight:800}.off{background:#ffe1dd;color:#8d1c0f}.on{background:#def4e4;color:#165d29}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.grid article,.panel{background:white;border:1px solid #e5e5df;border-radius:16px;padding:20px}.grid b{display:block;font-size:2rem}.grid span{color:#666}.panel{margin-top:16px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px 8px;border-bottom:1px solid #eee}.note{color:#666}@media(max-width:800px){.grid{grid-template-columns:1fr 1fr}header{align-items:flex-start;gap:20px;flex-direction:column}}
+:root{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,"Segoe UI",system-ui,sans-serif;background:#f5f5f2;color:#161616}*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:0 auto;padding:44px 24px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px}small{letter-spacing:.18em;font-weight:800}h1{margin:.25rem 0;font-size:2rem}h2{margin-top:0}.pill{padding:9px 12px;border-radius:999px;font-size:.75rem;font-weight:800}.off{background:#ffe1dd;color:#8d1c0f}.on{background:#def4e4;color:#165d29}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.grid article,.panel{background:white;border:1px solid #e5e5df;border-radius:16px;padding:20px}.grid b{display:block;font-size:2rem}.grid span{color:#666}.panel{margin-top:16px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px 8px;border-bottom:1px solid #eee}.note{color:#666}@media(max-width:800px){.grid{grid-template-columns:1fr 1fr}header{align-items:flex-start;gap:20px;flex-direction:column}}
 button{padding:10px 16px;border-radius:10px;border:1px solid #e5e5df;background:#161616;color:#fff;font-weight:700;cursor:pointer}button:disabled{opacity:.45;cursor:default}input{padding:10px 12px;border-radius:10px;border:1px solid #d8d8d0;font-size:.95rem;min-width:200px}.payload{background:#161616;color:#d7f7dd;border-radius:12px;padding:16px;overflow-x:auto;font-size:.8rem;line-height:1.5;max-height:480px}
 .tag{padding:3px 10px;border-radius:999px;font-size:.72rem;font-weight:700;white-space:nowrap}.tag.on{background:#def4e4;color:#165d29}.tag.off{background:#ffe1dd;color:#8d1c0f}.tag.neu{background:#eee;color:#555}button.ghost{background:transparent;color:#161616;border:1px solid #d8d8d0;padding:5px 12px;font-size:.8rem}
 
 /* ===== Painel do financeiro — design v2 (barra lateral escura, área clara) ===== */
 .cf{--vermelho:#E8390E;--vermelho2:#FF6B3D;--tinta:#0E1014;--tinta2:#171A21;--texto:#1D2026;--sec:#4B505B;--suave:#8A8F99;--fundo:#F4F5F7;--cartao:#FFFFFF;--borda:#E3E5EA;--faixa:#F7F8FA;
   --ok:#14804A;--okbg:#E5F5EC;--alerta:#9A5B00;--alertabg:#FFF4DE;--erro:#B42318;--errobg:#FDECEA;--sombra:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);--sombra2:0 12px 32px rgba(16,24,40,.12);--lado:252px;--barra:76px;
-  font-family:var(--fonte),Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-feature-settings:"cv11","ss01";
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",var(--fonte),"Segoe UI",system-ui,sans-serif;font-feature-settings:"cv11","ss01";
   color:var(--texto);background:var(--fundo);min-height:100vh;min-height:100dvh;-webkit-text-size-adjust:100%;text-size-adjust:100%;-webkit-tap-highlight-color:rgba(232,57,14,.12);overflow-x:hidden;overflow-x:clip;-webkit-font-smoothing:antialiased}
 .cf *{min-width:0}
 .cf small{letter-spacing:normal;font-weight:inherit}
@@ -287,7 +287,7 @@ button{padding:10px 16px;border-radius:10px;border:1px solid #e5e5df;background:
 .cf-cad-l span{color:var(--suave)}.cf-cad-l b{font-weight:600;text-align:right;overflow-wrap:anywhere}
 
 /* ---------- Tela de login ---------- */
-.lg{position:relative;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px;background:#0E1014;color:#F4F6FB;font-family:Inter,ui-sans-serif,system-ui;overflow:hidden;-webkit-font-smoothing:antialiased}
+.lg{position:relative;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px;background:#0E1014;color:#F4F6FB;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,"Segoe UI",system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
 .lg-aura{position:absolute;inset:0;pointer-events:none;background:radial-gradient(45% 55% at 20% 15%,rgba(255,107,61,.28),transparent 70%),radial-gradient(40% 50% at 85% 85%,rgba(59,107,255,.22),transparent 70%),radial-gradient(30% 40% at 70% 20%,rgba(45,212,255,.12),transparent 70%)}
 .lg-card{position:relative;width:100%;max-width:400px;padding:32px 28px;border-radius:28px;background:linear-gradient(180deg,rgba(28,31,44,.82),rgba(14,16,24,.9));border:1px solid rgba(255,255,255,.12);box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 40px 120px -20px rgba(0,0,0,.65);backdrop-filter:blur(30px) saturate(170%);-webkit-backdrop-filter:blur(30px) saturate(170%);animation:lgEntra .5s cubic-bezier(.32,.72,0,1) both}
 @keyframes lgEntra{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
@@ -319,3 +319,8 @@ button{padding:10px 16px;border-radius:10px;border:1px solid #e5e5df;background:
 .lg-campo input{display:block}
 .lg .lg-lembrar input{flex:none;width:18px;height:18px;min-width:0;margin:0;padding:0}
 @media(max-width:380px){.lg-card{padding:26px 18px}}
+/* Padrão Apple (Casa Forte): botões afundam no toque; campos sem zoom no iPhone. */
+button{-webkit-tap-highlight-color:transparent;transition:transform 120ms cubic-bezier(.2,.8,.2,1),opacity .15s ease,background-color .15s ease}
+button:not(:disabled):active{transform:scale(.97)}
+@media(max-width:700px){input,select,textarea{font-size:16px}}
+@media(prefers-reduced-motion:reduce){button:active{transform:none}}

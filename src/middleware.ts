@@ -25,7 +25,8 @@ export async function middleware(req: NextRequest) {
     const nextParam = req.nextUrl.searchParams.get("next") ?? "/";
     const volta = nextParam.startsWith("/") && !nextParam.startsWith("//") && !nextParam.startsWith("/login") ? nextParam : "/";
     if (await usuarioSso(req.cookies)) return NextResponse.redirect(new URL(volta, req.url));
-    if (ehDominioCasaForte(host) && !req.cookies.get("cf_sso_ida")) {
+    // Só desvia quando o login único está configurado (envs do Supabase).
+    if (process.env.SUPABASE_URL && ehDominioCasaForte(host) && !req.cookies.get("cf_sso_ida")) {
       const res = NextResponse.redirect(urlLoginUnico(`https://${host}${volta}`));
       res.cookies.set("cf_sso_ida", "1", { maxAge: 60, path: "/", httpOnly: true, secure: true, sameSite: "lax" });
       return res;

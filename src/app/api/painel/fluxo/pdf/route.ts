@@ -7,7 +7,7 @@ import { gerarFluxoPdf } from "@/lib/painel/fluxo-pdf";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 export async function GET(req: NextRequest) {
-  const a = usuarioPainel(req); if ("erro" in a) return a.erro;
+  const a = usuarioPainel(req, { brain: true }); if ("erro" in a) return a.erro;
   const f = await calcularFluxo();
   const bytes = await gerarFluxoPdf(f);
   return new NextResponse(Buffer.from(bytes), { headers: {

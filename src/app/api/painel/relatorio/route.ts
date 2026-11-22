@@ -8,7 +8,7 @@ import { gerarRelatorioPdf } from "@/lib/relatorio/pdf";
 export const dynamic = "force-dynamic";
 const dataDe = (req: NextRequest) => { const d = req.nextUrl.searchParams.get("data"); return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : localDateKey(new Date(), env().TIMEZONE); };
 export async function GET(req: NextRequest) {
-  const a = usuarioPainel(req); if ("erro" in a) return a.erro;
+  const a = usuarioPainel(req, { brain: true }); if ("erro" in a) return a.erro;
   const data = dataDe(req);
   const pdf = await gerarRelatorioPdf(await coletarRelatorio(data), new Date(), env().TIMEZONE);
   return new NextResponse(Buffer.from(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="relatorio-casa-forte-${data}.pdf"` } });

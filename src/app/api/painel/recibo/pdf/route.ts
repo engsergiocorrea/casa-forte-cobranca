@@ -6,7 +6,7 @@ import { reciboPdf } from "@/lib/painel/recibo";
 //   GET ?itens=47:3,47:4   (billId:installmentId, separados por vírgula)
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
-  const a = usuarioPainel(req); if ("erro" in a) return a.erro;
+  const a = usuarioPainel(req, { brain: true }); if ("erro" in a) return a.erro;
   const itens = (req.nextUrl.searchParams.get("itens") ?? "").split(",").map((x) => x.split(":").map(Number)).filter(([b, i]) => b > 0 && i > 0).slice(0, 24).map(([billId, installmentId]) => ({ billId, installmentId }));
   if (!itens.length) return NextResponse.json({ erro: "itens=billId:installmentId" }, { status: 400 });
   const r = await reciboPdf(itens);

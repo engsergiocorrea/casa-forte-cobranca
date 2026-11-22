@@ -16,11 +16,13 @@ export function usuarioPainel(req: NextRequest, opts: { brain?: boolean } = {}):
     const ator = (req.headers.get("x-brain-ator") ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9._-]/g, "").slice(0, 40);
     return { usuario: `brain:${ator || "desconhecido"}` };
   }
-  if (!usuariosConfigurados().size) return { erro: NextResponse.json({ erro: "Painel sem usuários: defina DASHBOARD_USERS no Railway." }, { status: 403 }) };
-  // Sessão da tela de login: o middleware validou o cookie e preencheu este
-  // cabeçalho (ele sempre apaga o que vier do navegador).
+  // Sessão já validada pelo middleware (login local OU login único do Portal):
+  // ele preenche este cabeçalho e sempre apaga o que vier do navegador. Quem
+  // entra pelo login único não precisa estar em DASHBOARD_USERS — a permissão
+  // do módulo "financeiro" já foi conferida no Portal.
   const daSessao = req.headers.get("x-cf-usuario");
-  if (daSessao && usuariosConfigurados().has(daSessao)) return { usuario: daSessao };
+  if (daSessao) return { usuario: daSessao };
+  if (!usuariosConfigurados().size) return { erro: NextResponse.json({ erro: "Painel sem usuários: defina DASHBOARD_USERS no Railway." }, { status: 403 }) };
   const u = usuarioDoHeader(auth);
   if (!u) return { erro: NextResponse.json({ erro: "Não autenticado." }, { status: 401 }) };
   return { usuario: u };

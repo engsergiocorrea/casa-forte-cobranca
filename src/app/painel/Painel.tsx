@@ -774,12 +774,18 @@ function Comissoes() {
       <button className="bt" disabled={rodando} onClick={() => acao({ acao: "verificar", previa: true })}>Conferir sinais (prévia)</button>
       <button className="bt leve" disabled={rodando} onClick={() => acao({ acao: "verificar" }, "Ler o Sienge agora e liberar as comissões com sinal quitado? Corretor e diretoria serão avisados.")}>Liberar agora</button>
       <button className="bt leve" disabled={rodando} onClick={() => acao({ acao: "importar" })}>Trazer vendas do Sienge</button>
+      <label className="bt leve" style={{ cursor: "pointer" }}>Importar histórico (arquivo)<input type="file" accept="application/json,.json" style={{ display: "none" }} onChange={async (e) => {
+        const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+        try { const itens = JSON.parse(await f.text()); await acao({ acao: "importar_historico", itens }, `Importar ${Array.isArray(itens) ? itens.length : 0} vendas do histórico como comissões JÁ PAGAS? Nenhuma mensagem será enviada.`); }
+        catch { setR({ erro: "Arquivo inválido (esperado o .json do histórico)." }); }
+      }} /></label>
     </div>
     {rodando && <p className="muted">Consultando o Sienge…</p>}
     {r?.erro && <div className="cf-banner erro">{r.erro}</div>}
     {r?.resultados && <section className="cf-box"><h2>{r.verificadas} comissão(ões) conferida(s)</h2>
       {r.resultados.length ? <ul>{r.resultados.map((x: any) => <li key={x.id}><b>{x.venda}</b>{x.sinal ? ` · ${x.sinal}` : ""} — {x.resultado}{x.avisos?.length ? ` (avisos: ${x.avisos.map((a: any) => `${a.destino} ${a.status}`).join(", ")})` : ""}</li>)}</ul> : <p className="muted">Nenhuma comissão aguardando sinal.</p>}
     </section>}
+    {r?.gravadas != null && <div className="cf-banner ok">Histórico importado: {r.gravadas} novas · {r.atualizadas} atualizadas · corretores {r.corretoresAntes} → {r.corretoresDepois}{r.puladas?.length ? ` · ${r.puladas.length} em andamento não alteradas` : ""}. Nenhuma mensagem foi enviada.</div>}
     {r?.contratosNoSienge != null && <div className="cf-banner ok">{r.contratosNoSienge} contratos no Sienge · {r.historico} no histórico (já pagas, sem mensagens) · {r.criadas} recentes para completar · {r.vinculadas} ligadas · {r.jaExistiam} já existiam.</div>}
     <div className="cf-seg" role="tablist" aria-label="Filtrar comissões" style={{ marginTop: 12 }}>{FILTROS_COM.map(([k, t]) => <button key={k} role="tab" aria-selected={filtro === k} className={filtro === k ? "ativo" : ""} onClick={() => setFiltro(k)}>{t}</button>)}</div>
     <section className="cf-box">{!d ? <p className="muted">Carregando…</p> :

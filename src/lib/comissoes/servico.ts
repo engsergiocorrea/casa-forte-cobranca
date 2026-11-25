@@ -206,3 +206,45 @@ export async function enviarLink(corretorId: string, usuario: string) {
 }
 
 export const telefoneE164 = (t: unknown) => { const d = digitos(t); return d ? toBrazilE164(d) : null; };
+
+// Histórico vindo dos contratos do Drive (arquivo gerado na análise de
+// 25/11/2026): grava cada venda como comissão JÁ PAGA, cria os corretores e
+// NUNCA envia mensagem. Não toca comissões em andamento (A_LIBERAR/DISPONIVEL).
+export type ItemHistorico = {
+  chave: string; empreendimento: string; unidade: string; siengeContractId?: number | null; contratoNumero?: string | null;
+  data?: string | null; clienteNome?: string | null; valorVenda?: number | null; valor?: number | null;
+  corretores: { nome: string; creci?: string | null; documento?: string | null; imobiliaria?: string | null }[];
+  avisos?: string[]; arquivo?: string | null;
+};
+
+export async function importarHistorico(itens: ItemHistorico[], usuario: string) {
+  const r = { gravadas: 0, atualizadas: 0, puladas: [] as string[], corretoresAntes: await db.corretor.count(), corretoresDepois: 0 };
+  for (const it of itens) {
+    const venda = `${it.empreendimento} ${it.unidade}`;
+    const ks: Corretor[] = [];
+    for (const c of it.corretores ?? []) { const k = await acharOuCriarCorretor(c); if (k && !ks.some((x) => x.id === k.id)) ks.push(k); }
+    const existente = it.siengeContractId
+      ? await db.comissao.findUnique({ where: { siengeContractId: it.siengeContractId } })
+      : await db.comissao.findUnique({ where: { contratosId: `drive:${it.chave}` } });
+    if (existente && ["A_LIBERAR", "DISPONIVEL"].includes(existente.status)) { r.puladas.push(`${venda}: em andamento no sistema (não alterada)`); continue; }
+    const obs = [
+      `Histórico: venda de ${it.data ? it.data.split("-").reverse().join("/") : "data não lida"}, comissão já paga antes do sistema.`,
+      ks.length > 1 ? `Corretores: ${ks.map((k) => k.nome).join(" + ")} (valor total da comissão).` : null,
+      it.avisos?.length ? `Conferir: ${it.avisos.join("; ")}.` : null,
+      it.arquivo ? `Contrato: Drive/Obras/${it.arquivo}` : null,
+    ].filter(Boolean).join(" ").slice(0, 1000);
+    const data = {
+      corretorId: ks[0]?.id ?? null, corretorNome: ks.map((k) => k.nome).join(" + ") || null,
+      valor: dec(it.valor), valorVenda: dec(it.valorVenda), clienteNome: it.clienteNome || null,
+      empreendimento: it.empreendimento, unidade: it.unidade, contratoNumero: it.contratoNumero ?? null,
+      status: "PAGA", pagaPor: `histórico (contratos do Drive) · ${usuario}`, pagaEm: existente?.pagaEm ?? new Date(), observacao: obs,
+    };
+    if (existente) { await db.comissao.update({ where: { id: existente.id }, data }); r.atualizadas++; }
+    else {
+      await db.comissao.create({ data: { ...data, origem: "DRIVE", siengeContractId: it.siengeContractId ?? null, contratosId: it.siengeContractId ? null : `drive:${it.chave}` } });
+      r.gravadas++;
+    }
+  }
+  r.corretoresDepois = await db.corretor.count();
+  return r;
+}

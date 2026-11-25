@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { usuarioPainel } from "@/lib/painel/auth";
-import { avisarLiberacao, importarDoSienge, marcarPaga, valorBR, verificarELiberar } from "@/lib/comissoes/servico";
+import { avisarLiberacao, importarDoSienge, importarHistorico, marcarPaga, valorBR, verificarELiberar } from "@/lib/comissoes/servico";
 import { destinatariosDiretoria, linkCorretor } from "@/lib/comissoes/avisos";
 import { contratos as contratosSienge } from "@/lib/painel/sienge-cache";
 
@@ -44,6 +44,10 @@ export async function POST(req: NextRequest) {
   try {
     switch (b.acao) {
       case "importar": return NextResponse.json(await importarDoSienge());
+      case "importar_historico": {
+        if (!Array.isArray(b.itens) || !b.itens.length || b.itens.length > 500) return NextResponse.json({ erro: "Arquivo sem vendas (ou com mais de 500)." }, { status: 400 });
+        return NextResponse.json(await importarHistorico(b.itens, usuario));
+      }
       case "verificar": return NextResponse.json(await verificarELiberar({ preview: !!b.previa, solicitadoPor: usuario }));
       case "salvar": {
         // Completar/editar: corretor, valor, observação e (opcional) o contrato do Sienge.

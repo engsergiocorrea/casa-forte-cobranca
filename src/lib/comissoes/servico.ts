@@ -80,9 +80,31 @@ export async function tentarVincular(c: Comissao, lista?: ContratoResumo[]): Pro
 // como PAGA, sem mensagem nenhuma — todas já foram pagas (algumas sem baixa no
 // Sienge). Posteriores sem comissão: PENDENTE_DADOS (o financeiro completa).
 // Idempotente (siengeContractId único).
+// Comissões já lançadas no Sienge, agrupadas por nº do contrato:
+// corretores (nome → soma das parcelas) e total.
+export async function comissoesDoSienge(): Promise<Map<string, { total: number; corretores: Map<string, number> }>> {
+  const out = new Map<string, { total: number; corretores: Map<string, number> }>();
+  for (let off = 0; off < 5000; off += 200) {
+    const raw = await sienge.listCommissions(200, off);
+    const page = (Array.isArray(raw) ? raw : (raw?.results ?? [])) as any[];
+    for (const x of page) {
+      const num = String(x?.salesContractNumber ?? "").trim().toUpperCase();
+      if (!num || String(x?.installmentStatus ?? "").toUpperCase() === "CANCELED") continue;
+      const g = out.get(num) ?? { total: 0, corretores: new Map<string, number>() };
+      const v = Number(x?.value) || 0;
+      const nome = String(x?.brokerName ?? "").trim() || "Corretor";
+      g.total += v; g.corretores.set(nome, (g.corretores.get(nome) ?? 0) + v);
+      out.set(num, g);
+    }
+    if (page.length < 200) break;
+  }
+  return out;
+}
+
 export async function importarDoSienge() {
   const lista = await contratosSienge(true);
   const corte = env().COMISSAO_HISTORICO_ATE;
+  const doSienge = await comissoesDoSienge().catch(() => new Map<string, { total: number; corretores: Map<string, number> }>());
   let criadas = 0, historico = 0, vinculadas = 0, jaExistiam = 0, canceladas = 0;
   for (const c of await db.comissao.findMany({ where: { siengeContractId: null } })) if (await tentarVincular(c, lista)) vinculadas++;
   for (const k of lista) {
@@ -90,11 +112,17 @@ export async function importarDoSienge() {
     if (/cancel/i.test(k.situacao)) { canceladas++; continue; }
     if (await db.comissao.findUnique({ where: { siengeContractId: k.id } })) { jaExistiam++; continue; }
     const antiga = !!k.data && k.data <= corte;
+    const sc = doSienge.get(k.numero.toUpperCase());
+    const nomes = sc ? [...sc.corretores.keys()] : [];
+    const corretor = nomes.length ? await acharOuCriarCorretor({ nome: nomes[0] }) : null;
+    for (const n of nomes.slice(1)) await acharOuCriarCorretor({ nome: n });
+    const detalhe = sc ? ` Comissão no Sienge: ${[...sc.corretores].map(([n, v]) => `${n} ${v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`).join(" + ")}.` : "";
     await db.comissao.create({ data: {
+      corretorId: corretor?.id ?? null, corretorNome: nomes.join(" + ") || null, valor: sc ? dec(Math.round(sc.total * 100) / 100) : null,
       siengeContractId: k.id, contratoNumero: k.numero, empreendimento: k.empreendimento, unidade: k.unidades.join(", ") || null,
       clienteNome: k.clientes.map((x) => x.nome).join(" e ") || null, valorVenda: dec(k.valor), origem: "SIENGE_IMPORT",
       ...(antiga
-        ? { status: "PAGA", pagaPor: "histórico (antes do sistema)", observacao: `Venda de ${(k.data ?? "").split("-").reverse().join("/")} — comissão já paga antes do controle pelo sistema.` }
+        ? { status: "PAGA", pagaPor: "histórico (antes do sistema)", observacao: `Venda de ${(k.data ?? "").split("-").reverse().join("/")} — comissão já paga antes do controle pelo sistema.${detalhe}` }
         : { status: "PENDENTE_DADOS" }),
     } });
     if (antiga) historico++; else criadas++;

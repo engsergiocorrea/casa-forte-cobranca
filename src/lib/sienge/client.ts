@@ -97,6 +97,8 @@ export const sienge = {
   listCustomers: (limit = 5, offset = 0) => request<any>(`/customers?limit=${limit}&offset=${offset}`),
   // A 1ª leitura da lista às vezes leva 10–30 s no Sienge.
   listSalesContracts: (limit = 5, offset = 0) => request<any>(`/sales-contracts?limit=${limit}&offset=${offset}`, { signal: AbortSignal.timeout(45_000) }),
+  // Comissões (parcelas de comissão por corretor; leitura liberada 25/11/2026).
+  listCommissions: (limit = 200, offset = 0) => request<any>(`/commissions?limit=${limit}&offset=${offset}`, { signal: AbortSignal.timeout(45_000) }),
   listUnits: (limit = 5, offset = 0) => request<any>(`/units?limit=${limit}&offset=${offset}`),
   // Leitura genérica (só GET) dos recursos REST liberados — usada pelas consultas do Brain.
   listar: (recurso: "enterprises" | "units" | "checking-accounts" | "cost-centers" | "customers", limit = 200, offset = 0) => request<any>(`/${recurso}?limit=${limit}&offset=${offset}`, { signal: AbortSignal.timeout(45_000) }),

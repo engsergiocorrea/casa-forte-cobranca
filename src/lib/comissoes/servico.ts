@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { Prisma, type Comissao, type Corretor } from "@prisma/client";
 import { db } from "../db";
+import { env } from "../env";
 import { sienge } from "../sienge/client";
 import { contratos as contratosSienge, type ContratoResumo } from "../painel/sienge-cache";
 import { toBrazilE164 } from "../safety";
@@ -75,23 +76,30 @@ export async function tentarVincular(c: Comissao, lista?: ContratoResumo[]): Pro
   return true;
 }
 
-// Vendas já no Sienge → comissão PENDENTE_DADOS (sem corretor/valor; nada é
-// avisado até o financeiro completar). Idempotente (siengeContractId único).
+// Vendas já no Sienge. Histórico (contrato até COMISSAO_HISTORICO_ATE): entra
+// como PAGA, sem mensagem nenhuma — todas já foram pagas (algumas sem baixa no
+// Sienge). Posteriores sem comissão: PENDENTE_DADOS (o financeiro completa).
+// Idempotente (siengeContractId único).
 export async function importarDoSienge() {
   const lista = await contratosSienge(true);
-  let criadas = 0, vinculadas = 0, jaExistiam = 0, canceladas = 0;
+  const corte = env().COMISSAO_HISTORICO_ATE;
+  let criadas = 0, historico = 0, vinculadas = 0, jaExistiam = 0, canceladas = 0;
   for (const c of await db.comissao.findMany({ where: { siengeContractId: null } })) if (await tentarVincular(c, lista)) vinculadas++;
   for (const k of lista) {
     if (!k.id) continue;
     if (/cancel/i.test(k.situacao)) { canceladas++; continue; }
     if (await db.comissao.findUnique({ where: { siengeContractId: k.id } })) { jaExistiam++; continue; }
+    const antiga = !!k.data && k.data <= corte;
     await db.comissao.create({ data: {
       siengeContractId: k.id, contratoNumero: k.numero, empreendimento: k.empreendimento, unidade: k.unidades.join(", ") || null,
-      clienteNome: k.clientes.map((x) => x.nome).join(" e ") || null, valorVenda: dec(k.valor), origem: "SIENGE_IMPORT", status: "PENDENTE_DADOS",
+      clienteNome: k.clientes.map((x) => x.nome).join(" e ") || null, valorVenda: dec(k.valor), origem: "SIENGE_IMPORT",
+      ...(antiga
+        ? { status: "PAGA", pagaPor: "histórico (antes do sistema)", observacao: `Venda de ${(k.data ?? "").split("-").reverse().join("/")} — comissão já paga antes do controle pelo sistema.` }
+        : { status: "PENDENTE_DADOS" }),
     } });
-    criadas++;
+    if (antiga) historico++; else criadas++;
   }
-  return { contratosNoSienge: lista.length, criadas, vinculadas, jaExistiam, canceladas };
+  return { contratosNoSienge: lista.length, historico, criadas, vinculadas, jaExistiam, canceladas };
 }
 
 type Liberacao = { id: string; venda: string; resultado: string; sinal?: string; avisos?: ResultadoAviso[] };

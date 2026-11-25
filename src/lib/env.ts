@@ -76,6 +76,9 @@ const schema = z.object({
   // Chave que o sistema Contratos usa para criar a comissão quando o contrato é
   // assinado (POST /api/internal/comissoes). Vazia = rota desligada.
   CONTRATOS_API_KEY: z.string().default("").transform((v) => v.trim()),
+  // Vendas no Sienge com data de contrato ATÉ este dia são histórico: entram
+  // como comissão já PAGA e nunca geram mensagem (decisão do usuário 25/11/2026).
+  COMISSAO_HISTORICO_ATE: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default("2026-11-25"),
   REPORT_AUTO_ENABLED: bool,
   CRON_SECRET: z.string().min(16).default("CHANGE_ME_CHANGE_ME"),
   // Casa Forte Brain (projeto casaforte-ia). Página: a aba Brain do painel

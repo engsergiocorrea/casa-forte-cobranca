@@ -780,7 +780,7 @@ function Comissoes() {
     {r?.resultados && <section className="cf-box"><h2>{r.verificadas} comissão(ões) conferida(s)</h2>
       {r.resultados.length ? <ul>{r.resultados.map((x: any) => <li key={x.id}><b>{x.venda}</b>{x.sinal ? ` · ${x.sinal}` : ""} — {x.resultado}{x.avisos?.length ? ` (avisos: ${x.avisos.map((a: any) => `${a.destino} ${a.status}`).join(", ")})` : ""}</li>)}</ul> : <p className="muted">Nenhuma comissão aguardando sinal.</p>}
     </section>}
-    {r?.contratosNoSienge != null && <div className="cf-banner ok">{r.contratosNoSienge} contratos no Sienge · {r.criadas} novas vendas trazidas · {r.vinculadas} ligadas · {r.jaExistiam} já existiam. Complete corretor e valor nas "Completar dados".</div>}
+    {r?.contratosNoSienge != null && <div className="cf-banner ok">{r.contratosNoSienge} contratos no Sienge · {r.historico} no histórico (já pagas, sem mensagens) · {r.criadas} recentes para completar · {r.vinculadas} ligadas · {r.jaExistiam} já existiam.</div>}
     <div className="cf-seg" role="tablist" aria-label="Filtrar comissões" style={{ marginTop: 12 }}>{FILTROS_COM.map(([k, t]) => <button key={k} role="tab" aria-selected={filtro === k} className={filtro === k ? "ativo" : ""} onClick={() => setFiltro(k)}>{t}</button>)}</div>
     <section className="cf-box">{!d ? <p className="muted">Carregando…</p> :
       <Tabela cols={[{ t: "Venda", destaque: true }, { t: "Cliente" }, { t: "Corretor" }, { t: "Comissão", num: true }, { t: "Situação" }, { t: "NF" }, { t: "" }]} vazio="Nenhuma comissão neste filtro."

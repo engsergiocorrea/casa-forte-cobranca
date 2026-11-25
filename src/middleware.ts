@@ -36,6 +36,7 @@ export async function middleware(req: NextRequest) {
   // Rotas com autenticação própria (Bearer/token) e arquivos públicos.
   if (
     path.startsWith("/api/webhooks/") || path === "/api/health" || path.startsWith("/api/test/") || path.startsWith("/api/internal/") ||
+    path.startsWith("/corretor/") || path.startsWith("/api/corretor/") ||
     path.startsWith("/marca/") || path === "/icon.png" || path === "/apple-icon.png" ||
     path === "/login" || path === "/api/login" || path === "/api/logout"
   ) return seguir();

@@ -70,6 +70,12 @@ const schema = z.object({
   // Relatório do dia (PDF por WhatsApp) — telefones E.164 separados por vírgula
   // (Sergio e Bruna). Automático só com REPORT_AUTO_ENABLED=true.
   REPORT_RECIPIENTS: z.string().default(""),
+  // Comissões de corretores: avisos por WhatsApp (corretor e diretoria em
+  // REPORT_RECIPIENTS). COMISSAO_DRY_RUN=true (padrão) só registra o que sairia.
+  COMISSAO_DRY_RUN: z.string().default("true").transform((v) => v.toLowerCase() !== "false"),
+  // Chave que o sistema Contratos usa para criar a comissão quando o contrato é
+  // assinado (POST /api/internal/comissoes). Vazia = rota desligada.
+  CONTRATOS_API_KEY: z.string().default("").transform((v) => v.trim()),
   REPORT_AUTO_ENABLED: bool,
   CRON_SECRET: z.string().min(16).default("CHANGE_ME_CHANGE_ME"),
   // Casa Forte Brain (projeto casaforte-ia). Página: a aba Brain do painel

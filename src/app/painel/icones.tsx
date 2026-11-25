@@ -22,6 +22,7 @@ const P: Record<string, string> = {
   enviar: "M22 2 11 13M22 2l-7 20-4-9-9-4z",
   atualizar: "M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5",
   escudo: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  comissoes: "M19 5 5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
 };
 export function Icone({ n, t = 18, className }: { n: keyof typeof P | string; t?: number; className?: string }) {
   return <svg className={className} width={t} height={t} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={P[n] ?? ""} /></svg>;

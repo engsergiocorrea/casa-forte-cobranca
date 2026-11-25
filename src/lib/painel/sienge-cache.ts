@@ -4,6 +4,7 @@ import { sienge } from "../sienge/client";
 // a busca do painel não precisa ir ao Sienge a cada tecla.
 
 export type ContratoResumo = {
+  id: number; valor: number | null;
   numero: string; empreendimento: string; unidades: string[]; situacao: string;
   billId: number | null; clientes: { id: number; nome: string }[];
 };
@@ -21,6 +22,7 @@ export async function contratos(forcar = false): Promise<ContratoResumo[]> {
     if (page.length < 200) break;
   }
   const dados = todos.map((c): ContratoResumo => ({
+    id: Number(c?.id) || 0, valor: Number.isFinite(Number(c?.value)) ? Number(c.value) : null,
     numero: String(c?.number ?? "").trim(),
     empreendimento: String(c?.enterpriseName ?? "").trim(),
     unidades: (Array.isArray(c?.salesContractUnits) ? c.salesContractUnits : []).map((u: any) => String(u?.name ?? "").trim()).filter(Boolean),

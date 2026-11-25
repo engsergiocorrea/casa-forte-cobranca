@@ -411,3 +411,82 @@ model AlteracaoSienge {
   @@index([customerId])
   @@index([billId])
 }
+
+// ── Comissões de corretores ────────────────────────────────────────────────
+// Corretor: cadastro mínimo feito pelo financeiro (nome/telefone); o resto
+// (CPF/CNPJ, CRECI, PIX, banco) o próprio corretor cola pelo link /corretor/<token>.
+model Corretor {
+  id         String     @id @default(cuid())
+  nome       String
+  creci      String?
+  documento  String?    // CPF ou CNPJ (só dígitos)
+  telefone   String?    // E.164
+  email      String?
+  pixTipo    String?    // CPF | CNPJ | TELEFONE | EMAIL | ALEATORIA
+  pixChave   String?
+  banco      String?    // texto livre: banco, agência e conta (opcional)
+  token      String     @unique // link público do corretor (segredo)
+  ativo      Boolean    @default(true)
+  dadosAtualizadosEm DateTime? // última vez que o corretor salvou pelo link
+  comissoes  Comissao[]
+  criadoEm   DateTime   @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([creci])
+}
+
+// Uma comissão por venda (contrato). Regra (decisão do usuário 25/11/2026):
+// a comissão inteira fica DISPONÍVEL quando o SINAL (condição "SI" no Sienge)
+// estiver totalmente pago.
+//   PENDENTE_DADOS → importada do Sienge sem corretor/valor (não avisa ninguém)
+//   A_LIBERAR      → aguardando o sinal
+//   DISPONIVEL     → sinal pago: corretor e financeiro avisados
+//   PAGA | CANCELADA
+model Comissao {
+  id                String    @id @default(cuid())
+  corretorId        String?
+  corretor          Corretor? @relation(fields: [corretorId], references: [id])
+  corretorNome      String?   // como veio do contrato (antes de casar com o cadastro)
+  siengeContractId  Int?      @unique
+  contratoNumero    String?   // ex.: SANTORINI108
+  empreendimento    String?
+  unidade           String?
+  clienteNome       String?
+  valorVenda        Decimal?  @db.Decimal(18, 2)
+  valor             Decimal?  @db.Decimal(18, 2) // comissão a pagar ao corretor
+  status            String    @default("A_LIBERAR")
+  origem            String    // CONTRATOS | SIENGE_IMPORT | MANUAL
+  contratosId       String?   @unique // id do contrato no sistema Contratos
+  sinalTotal        Decimal?  @db.Decimal(18, 2)
+  sinalPago         Decimal?  @db.Decimal(18, 2)
+  verificadoEm      DateTime? // última leitura do Sienge
+  liberadaEm        DateTime?
+  pagaEm            DateTime?
+  pagaPor           String?
+  nfNumero          String?   // nº da NF/RPA informado pelo corretor
+  nfEnviadaEm       DateTime?
+  observacao        String?
+  arquivos          ComissaoArquivo[]
+  criadaEm          DateTime  @default(now())
+  atualizadaEm      DateTime  @updatedAt
+
+  @@index([status])
+  @@index([corretorId])
+}
+
+// NF/RPA enviada pelo corretor e comprovante de pagamento (guardados no banco:
+// arquivos pequenos, sem storage externo).
+model ComissaoArquivo {
+  id         String   @id @default(cuid())
+  comissaoId String
+  comissao   Comissao @relation(fields: [comissaoId], references: [id], onDelete: Cascade)
+  tipo       String   // NF | COMPROVANTE
+  nome       String
+  mime       String
+  tamanho    Int
+  dados      Bytes
+  enviadoPor String   // corretor | painel:<usuario>
+  criadoEm   DateTime @default(now())
+
+  @@index([comissaoId])
+}

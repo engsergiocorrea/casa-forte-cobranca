@@ -8,7 +8,7 @@ import { Icone } from "./icones";
 // Pensado para celular (iPhone/Android, Safari/Chrome): tabelas viram cartões,
 // ações ficam numa barra fixa no rodapé, campos com 16px (sem zoom no iOS).
 
-type Aba = "hoje" | "clientes" | "inadimplencia" | "fluxo" | "pausas" | "regua" | "historico";
+type Aba = "hoje" | "clientes" | "inadimplencia" | "fluxo" | "comissoes" | "pausas" | "regua" | "historico";
 type TipoEnvio = "BOLETO" | "LEMBRETE_D0" | "COBRANCA";
 
 const brl = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
@@ -738,7 +738,141 @@ function FluxoCaixa() {
 }
 
 // ---------- Shell ----------
-const ABAS: [Aba, string, string][] = [["hoje", "Hoje", "hoje"], ["clientes", "Clientes", "clientes"], ["inadimplencia", "Inadimplência", "inadimplencia"], ["fluxo", "Fluxo de caixa", "fluxo"], ["pausas", "Pausas", "pausas"], ["regua", "Régua", "regua"], ["historico", "Histórico", "historico"]];
+// ---------- Comissões ----------
+const ST_COM: Record<string, [string, string]> = { PENDENTE_DADOS: ["Completar dados", "al"], A_LIBERAR: ["Aguardando sinal", ""], DISPONIVEL: ["A pagar", "er"], PAGA: ["Paga", "ok"], CANCELADA: ["Cancelada", ""] };
+const FILTROS_COM: [string, string][] = [["abertas", "Em aberto"], ["DISPONIVEL", "A pagar"], ["A_LIBERAR", "Aguardando sinal"], ["PENDENTE_DADOS", "Completar dados"], ["PAGA", "Pagas"], ["todas", "Todas"]];
+const paraBase64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] ?? ""); r.onerror = rej; r.readAsDataURL(f); });
+
+function Comissoes() {
+  const [d, setD] = useState<any>(null); const [filtro, setFiltro] = useState("abertas");
+  const [aberta, setAberta] = useState<any>(null); const [corretores, setCorretores] = useState(false);
+  const [r, setR] = useState<any>(null); const [rodando, setRodando] = useState(false);
+  const carregar = useCallback(() => { api("/api/painel/comissoes").then(setD).catch((e) => setD({ erro: e.message })); }, []);
+  useEffect(carregar, [carregar]);
+  async function acao(body: any, confirmar?: string) {
+    if (confirmar && !confirm(confirmar)) return;
+    setRodando(true); setR(null);
+    try { setR(await api("/api/painel/comissoes", { method: "POST", body: JSON.stringify(body) })); carregar(); } catch (e: any) { setR({ erro: e.message }); }
+    setRodando(false);
+  }
+  if (d?.erro) return <><Cabecalho titulo="Comissões" /><div className="cf-banner erro">{d.erro}</div></>;
+  const cs: any[] = d?.comissoes ?? [];
+  const lista = cs.filter((c) => filtro === "todas" ? true : filtro === "abertas" ? ["DISPONIVEL", "A_LIBERAR", "PENDENTE_DADOS"].includes(c.status) : c.status === filtro);
+  const soma = (st: string) => cs.filter((c) => c.status === st).reduce((s, c) => s + (c.valor ?? 0), 0);
+  const mes = new Date().toISOString().slice(0, 7);
+  const pagasMes = cs.filter((c) => c.status === "PAGA" && c.pagaEm?.slice(0, 7) === mes).reduce((s, c) => s + (c.valor ?? 0), 0);
+  if (corretores) return <Corretores dados={d} voltar={() => { setCorretores(false); carregar(); }} />;
+  return <>
+    <Cabecalho titulo="Comissões" sub="Liberadas quando o cliente quita o sinal. O corretor e a diretoria são avisados no WhatsApp." extra={<button className="bt leve" onClick={() => setCorretores(true)}>Corretores ({d?.corretores?.length ?? 0})</button>} />
+    {d?.config?.modoTeste && <div className="cf-banner teste">Modo teste: os avisos de comissão ficam registrados no Histórico, mas não são enviados (COMISSAO_DRY_RUN).</div>}
+    {d && <div className="cf-cards cf-cards-3">
+      <KpiValor i="comissoes" v={soma("DISPONIVEL")} rot="A pagar agora" tom={soma("DISPONIVEL") > 0 ? "alerta" : undefined} />
+      <KpiValor i="aguardando" v={soma("A_LIBERAR")} rot="Aguardando sinal" />
+      <KpiValor i="confirmacao" v={pagasMes} rot="Pagas neste mês" tom="ok" />
+    </div>}
+    <div className="acoes" style={{ marginTop: 12 }}>
+      <button className="bt" disabled={rodando} onClick={() => acao({ acao: "verificar", previa: true })}>Conferir sinais (prévia)</button>
+      <button className="bt leve" disabled={rodando} onClick={() => acao({ acao: "verificar" }, "Ler o Sienge agora e liberar as comissões com sinal quitado? Corretor e diretoria serão avisados.")}>Liberar agora</button>
+      <button className="bt leve" disabled={rodando} onClick={() => acao({ acao: "importar" })}>Trazer vendas do Sienge</button>
+    </div>
+    {rodando && <p className="muted">Consultando o Sienge…</p>}
+    {r?.erro && <div className="cf-banner erro">{r.erro}</div>}
+    {r?.resultados && <section className="cf-box"><h2>{r.verificadas} comissão(ões) conferida(s)</h2>
+      {r.resultados.length ? <ul>{r.resultados.map((x: any) => <li key={x.id}><b>{x.venda}</b>{x.sinal ? ` · ${x.sinal}` : ""} — {x.resultado}{x.avisos?.length ? ` (avisos: ${x.avisos.map((a: any) => `${a.destino} ${a.status}`).join(", ")})` : ""}</li>)}</ul> : <p className="muted">Nenhuma comissão aguardando sinal.</p>}
+    </section>}
+    {r?.contratosNoSienge != null && <div className="cf-banner ok">{r.contratosNoSienge} contratos no Sienge · {r.criadas} novas vendas trazidas · {r.vinculadas} ligadas · {r.jaExistiam} já existiam. Complete corretor e valor nas "Completar dados".</div>}
+    <div className="cf-seg" role="tablist" aria-label="Filtrar comissões" style={{ marginTop: 12 }}>{FILTROS_COM.map(([k, t]) => <button key={k} role="tab" aria-selected={filtro === k} className={filtro === k ? "ativo" : ""} onClick={() => setFiltro(k)}>{t}</button>)}</div>
+    <section className="cf-box">{!d ? <p className="muted">Carregando…</p> :
+      <Tabela cols={[{ t: "Venda", destaque: true }, { t: "Cliente" }, { t: "Corretor" }, { t: "Comissão", num: true }, { t: "Situação" }, { t: "NF" }, { t: "" }]} vazio="Nenhuma comissão neste filtro."
+        linhas={lista.map((c) => ({ k: c.id, c: [
+          <span key="v">{[c.unidade, c.empreendimento].filter(Boolean).join(" – ") || c.contratoNumero || "—"}{c.contratoNumero ? <small className="muted"> · {c.contratoNumero}</small> : null}</span>,
+          c.clienteNome ?? "—", c.corretorNome ?? <span className="muted">—</span>, brl(c.valor),
+          <span key="s" className={`cf-st ${ST_COM[c.status]?.[1] ?? ""}`}>{ST_COM[c.status]?.[0] ?? c.status}</span>,
+          c.nfEnviadaEm ? `Recebida${c.nfNumero ? ` nº ${c.nfNumero}` : ""}` : (c.status === "DISPONIVEL" ? "Aguardando" : "—"),
+          <button key="b" className="bt leve mini" onClick={() => setAberta(c)}>Abrir</button>,
+        ] }))} />}
+    </section>
+    {aberta && <ComissaoModal c={aberta} corretores={d?.corretores ?? []} onClose={(mudou) => { setAberta(null); if (mudou) carregar(); }} />}
+  </>;
+}
+
+function ComissaoModal({ c, corretores, onClose }: { c: any; corretores: any[]; onClose: (mudou: boolean) => void }) {
+  const [f, setF] = useState({ corretorId: c.corretorId ?? "", valor: c.valor != null ? String(c.valor).replace(".", ",") : "", contratoNumero: "", observacao: c.observacao ?? "", situacao: "" });
+  const [arq, setArq] = useState<File | null>(null); const [erro, setErro] = useState(""); const [ok, setOk] = useState(""); const [ocupado, setOcupado] = useState(false);
+  async function post(body: any, confirmar?: string) {
+    if (confirmar && !confirm(confirmar)) return;
+    setErro(""); setOk(""); setOcupado(true);
+    try { const j = await api("/api/painel/comissoes", { method: "POST", body: JSON.stringify(body) }); setOk(j.avisos?.length ? `Feito. Avisos: ${j.avisos.map((a: any) => `${a.destino} ${a.status}`).join(", ")}` : "Feito."); setTimeout(() => onClose(true), 900); }
+    catch (e: any) { setErro(e.message); }
+    setOcupado(false);
+  }
+  async function pagar() {
+    const comprovante = arq ? { nome: arq.name, mime: arq.type || "application/pdf", base64: await paraBase64(arq) } : null;
+    post({ acao: "pagar", id: c.id, comprovante }, `Marcar como paga a comissão de ${brl(c.valor)} para ${c.corretorNome}? O corretor será avisado.`);
+  }
+  const pendente = c.status === "PENDENTE_DADOS";
+  return <div className="cf-modal" onClick={() => !ocupado && onClose(false)}>
+    <div className="cf-modal-in" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className="cf-modal-cab"><h2>{[c.unidade, c.empreendimento].filter(Boolean).join(" – ") || c.contratoNumero || "Comissão"}</h2>
+      <p className="muted">{c.clienteNome ?? ""}{c.contratoNumero ? ` · ${c.contratoNumero}` : " · ainda sem contrato no Sienge"}{c.valorVenda ? ` · venda ${brl(c.valorVenda)}` : ""}</p></div>
+      <div className="cf-modal-corpo">
+      <p><span className={`cf-st ${ST_COM[c.status]?.[1] ?? ""}`}>{ST_COM[c.status]?.[0] ?? c.status}</span>{c.sinalTotal ? <span className="muted"> · sinal {brl(c.sinalPago)} de {brl(c.sinalTotal)}{c.verificadoEm ? ` (lido ${quando(c.verificadoEm)})` : ""}</span> : null}</p>
+      {c.status !== "PAGA" && c.status !== "CANCELADA" && <div className="cf-form" style={{ marginTop: 10 }}>
+        <label>Corretor<select value={f.corretorId} onChange={(e) => setF({ ...f, corretorId: e.target.value })}><option value="">— escolher —</option>{corretores.map((k) => <option key={k.id} value={k.id}>{k.nome}{k.creci ? ` (CRECI ${k.creci})` : ""}</option>)}</select></label>
+        <label>Comissão (R$)<input value={f.valor} inputMode="decimal" onChange={(e) => setF({ ...f, valor: e.target.value })} placeholder="44.400,00" /></label>
+        {!c.contratoNumero && <label>Contrato no Sienge<input value={f.contratoNumero} autoCapitalize="characters" onChange={(e) => setF({ ...f, contratoNumero: e.target.value })} placeholder="SANTORINI108" /></label>}
+        {pendente && <label>Situação<select value={f.situacao} onChange={(e) => setF({ ...f, situacao: e.target.value })}><option value="">— escolher —</option><option value="acompanhar">Acompanhar (libera no sinal)</option><option value="ja_paga">Já foi paga (venda antiga)</option></select></label>}
+        <label className="largo">Observação<input value={f.observacao} onChange={(e) => setF({ ...f, observacao: e.target.value })} /></label>
+      </div>}
+      {c.arquivos?.length > 0 && <p style={{ marginTop: 10 }}>{c.arquivos.map((a: any) => <a key={a.id} className="bt leve mini" style={{ marginRight: 6 }} href={`/api/painel/comissoes/arquivo?id=${a.id}`} target="_blank" rel="noreferrer">{a.tipo === "NF" ? "Ver NF/RPA" : "Ver comprovante"}</a>)}</p>}
+      {c.status === "DISPONIVEL" && <label className="cf-arq" style={{ display: "block", marginTop: 12 }}>Comprovante do PIX (opcional)<input type="file" accept="application/pdf,image/*" onChange={(e) => setArq(e.target.files?.[0] ?? null)} /></label>}
+      {erro && <p className="erro">{erro}</p>}{ok && <div className="cf-banner ok">{ok}</div>}
+      </div>
+      <div className="cf-modal-rodape acoes">
+        {c.status !== "PAGA" && c.status !== "CANCELADA" && <button className="bt" disabled={ocupado || (pendente && !f.situacao)} onClick={() => post({ acao: "salvar", id: c.id, corretorId: f.corretorId || null, valor: f.valor, contratoNumero: f.contratoNumero || undefined, observacao: f.observacao, situacao: f.situacao || undefined }, f.situacao === "acompanhar" ? "Acompanhar esta venda? Se o sinal já estiver quitado, a comissão será liberada na próxima conferência e o corretor/diretoria serão avisados." : undefined)}>Salvar</button>}
+        {c.status === "DISPONIVEL" && <button className="bt" disabled={ocupado} onClick={pagar}>Marcar como paga</button>}
+        {c.status === "A_LIBERAR" && c.corretorId && c.valor != null && <button className="bt leve" disabled={ocupado} onClick={() => post({ acao: "liberar_manual", id: c.id }, "Liberar esta comissão sem esperar o sinal? Corretor e diretoria serão avisados.")}>Liberar manualmente</button>}
+        {!["PAGA", "CANCELADA"].includes(c.status) && <button className="bt leve" disabled={ocupado} onClick={() => post({ acao: "cancelar", id: c.id, motivo: prompt("Motivo do cancelamento?") ?? "" }, "Cancelar esta comissão?")}>Cancelar</button>}
+        <button className="bt leve" onClick={() => onClose(false)}>Fechar</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function Corretores({ dados, voltar }: { dados: any; voltar: () => void }) {
+  const [ks, setKs] = useState<any[]>(dados?.corretores ?? []); const [edit, setEdit] = useState<any>(null); const [msg, setMsg] = useState(""); const [erro, setErro] = useState("");
+  const recarregar = () => api("/api/painel/comissoes").then((d) => setKs(d.corretores));
+  async function post(body: any) {
+    setErro(""); setMsg("");
+    try { const j = await api("/api/painel/corretores", { method: "POST", body: JSON.stringify(body) }); setMsg(j.aviso ? `Link: ${j.aviso.destino} ${j.aviso.status}${j.aviso.motivo ? ` (${j.aviso.motivo})` : ""}` : "Salvo."); setEdit(null); recarregar(); }
+    catch (e: any) { setErro(e.message); }
+  }
+  async function copiar(t: string) { try { await navigator.clipboard.writeText(t); setMsg("Link copiado."); } catch { prompt("Copie o link:", t); } }
+  return <>
+    <Cabecalho titulo="Corretores" sub="Cadastre nome e WhatsApp. O próprio corretor completa CPF/CNPJ, CRECI e PIX pelo link dele." extra={<button className="bt leve" onClick={voltar}>← Comissões</button>} />
+    {!edit && <div className="acoes"><button className="bt" onClick={() => setEdit({})}>Novo corretor</button></div>}
+    {edit && <section className="cf-box"><h2>{edit.id ? "Editar corretor" : "Novo corretor"}</h2>
+      <div className="cf-form">
+        {[["nome", "Nome"], ["telefone", "WhatsApp"], ["creci", "CRECI"], ["documento", "CPF/CNPJ"], ["pixChave", "Chave PIX"], ["email", "E-mail"]].map(([k, t]) =>
+          <label key={k}>{t}<input value={edit[k] ?? ""} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })} /></label>)}
+      </div>
+      <div className="acoes" style={{ marginTop: 12 }}><button className="bt" disabled={!edit.nome} onClick={() => post(edit)}>Salvar</button><button className="bt leve" onClick={() => setEdit(null)}>Cancelar</button></div>
+    </section>}
+    {erro && <div className="cf-banner erro">{erro}</div>}{msg && <div className="cf-banner ok">{msg}</div>}
+    <section className="cf-box">
+      <Tabela cols={[{ t: "Corretor", destaque: true }, { t: "CRECI" }, { t: "WhatsApp" }, { t: "PIX" }, { t: "Dados" }, { t: "" }]} vazio="Nenhum corretor cadastrado."
+        linhas={ks.map((k) => ({ k: k.id, c: [
+          k.nome, k.creci ?? "—", k.telefone ?? <span className="cf-st al">sem WhatsApp</span>,
+          k.pixChave ? <span className="cf-st ok">informado</span> : <span className="cf-st al">falta</span>,
+          k.dadosAtualizadosEm ? `pelo corretor em ${quando(k.dadosAtualizadosEm)}` : "—",
+          <span key="a" className="acoes"><button className="bt leve mini" onClick={() => copiar(k.link)}>Copiar link</button><button className="bt leve mini" disabled={!k.telefone} onClick={() => post({ acao: "enviar_link", id: k.id })}>Enviar link</button><button className="bt leve mini" onClick={() => setEdit(k)}>Editar</button></span>,
+        ] }))} />
+    </section>
+  </>;
+}
+
+
+const ABAS: [Aba, string, string][] = [["hoje", "Hoje", "hoje"], ["clientes", "Clientes", "clientes"], ["inadimplencia", "Inadimplência", "inadimplencia"], ["fluxo", "Fluxo de caixa", "fluxo"], ["comissoes", "Comissões", "comissoes"], ["pausas", "Pausas", "pausas"], ["regua", "Régua", "regua"], ["historico", "Histórico", "historico"]];
 
 export default function Painel() {
   const [aba, setAba] = useState<Aba>("hoje");
@@ -750,6 +884,7 @@ export default function Painel() {
     const q = new URLSearchParams(window.location.search);
     const p = (q.get("pergunta") ?? "").slice(0, 500);
     if (q.get("brain") === "1" || p) { setPerguntaInicial(p); setBrain(true); }
+    const a = q.get("aba"); if (a && ABAS.some(([k]) => k === a)) setAba(a as Aba);
   }, []);
   const ir = (k: Aba) => { setAba(k); if (k !== "clientes") setCliente(null); window.scrollTo({ top: 0 }); };
   useEffect(() => { const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setBrain(true); } }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, []);
@@ -789,6 +924,7 @@ export default function Painel() {
         {aba === "regua" && <Regua />}
         {aba === "historico" && <Historico />}
         {aba === "fluxo" && <FluxoCaixa />}
+        {aba === "comissoes" && <Comissoes />}
         <Rodape />
       </main>
     </div>

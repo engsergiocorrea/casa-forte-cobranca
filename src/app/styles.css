@@ -263,7 +263,7 @@ button{padding:10px 16px;border-radius:10px;border:1px solid #e5e5df;background:
 /* Fluxo de caixa */
 .cf-fluxo-bts{display:flex;gap:8px;flex-wrap:wrap}
 .cf-seg-obras{flex-wrap:wrap;margin:4px 0 4px}
-.cf-cards-5{grid-template-columns:repeat(5,1fr)}
+.cf-cards-5{grid-template-columns:repeat(5,1fr)}.cf-cards-3{grid-template-columns:repeat(3,1fr)}
 .cf-kpi-brl{font-size:1.25rem!important;letter-spacing:-.01em}
 .cf-graf{margin:4px 0 14px}
 .cf-graf-leg{display:flex;flex-wrap:wrap;align-items:center;gap:14px;font-size:.8rem;color:var(--sec);margin-bottom:8px}

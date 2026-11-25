@@ -36,6 +36,16 @@ export function mockApi(url: string, init?: RequestInit): any {
   const u = new URL(url, "http://x");
   const corpo = init?.body ? JSON.parse(String(init.body)) : {};
   switch (u.pathname) {
+    case "/api/painel/comissoes":
+      if (init?.method === "POST") return corpo.acao === "verificar" ? { verificadas: 1, resultados: [{ id: "c2", venda: "CASA 108 – Casas Santorini", sinal: "sinal R$ 250.000,00 de R$ 250.000,00", resultado: "SERIA LIBERADA agora (corretor e diretoria avisados)." }] } : { ok: true };
+      return { config: { modoTeste: true, diretoria: 2 },
+        comissoes: [
+          { id: "c1", status: "DISPONIVEL", origem: "CONTRATOS", contratoNumero: "SANTORINI102", empreendimento: "Casas Santorini", unidade: "CASA 102", clienteNome: "CLIENTE EXEMPLO", valorVenda: 793800, valor: 47628, corretorId: "k1", corretorNome: "Antonio Carlos Exemplo", sinalTotal: 158760, sinalPago: 158760, verificadoEm: new Date().toISOString(), liberadaEm: new Date().toISOString(), nfNumero: "1234", nfEnviadaEm: new Date().toISOString(), arquivos: [{ id: "a1", tipo: "NF", nome: "nf.pdf" }] },
+          { id: "c2", status: "A_LIBERAR", origem: "CONTRATOS", contratoNumero: "SANTORINI108", empreendimento: "Casas Santorini", unidade: "CASA 108", clienteNome: "LUCAS EXEMPLO e LUISA EXEMPLO", valorVenda: 740000, valor: 44400, corretorId: "k1", corretorNome: "Antonio Carlos Exemplo", sinalTotal: 250000, sinalPago: 0, arquivos: [] },
+          { id: "c3", status: "PENDENTE_DADOS", origem: "SIENGE_IMPORT", contratoNumero: "SANTORINI-008", empreendimento: "SANTORINI", unidade: "CASA 008", clienteNome: "KALIL EXEMPLO", valorVenda: 560000, valor: null, corretorId: null, corretorNome: null, arquivos: [] },
+        ],
+        corretores: [{ id: "k1", nome: "Antonio Carlos Exemplo", creci: "4074", telefone: "+5582999990000", pixChave: "000.000.000-00", pixTipo: "CPF", link: "https://exemplo/corretor/abc", dadosAtualizadosEm: new Date().toISOString() },
+          { id: "k2", nome: "Corretor Sem Dados", creci: null, telefone: null, pixChave: null, link: "https://exemplo/corretor/def", dadosAtualizadosEm: null }] };
     case "/api/painel/resumo": return { usuario: "demo", data: hoje, config, relatorio };
     case "/api/painel/clientes": return [
       { customerId: 1, nome: "MARIA DAS GRAÇAS DE SOUZA E SILVA EXEMPLO", contratos: [{ numero: "UMAR-01", empreendimento: "UMÁ MILAGRES", unidades: ["R - 01"] }] },

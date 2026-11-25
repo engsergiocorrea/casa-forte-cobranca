@@ -39,9 +39,9 @@ export async function POST(req: NextRequest) {
     });
     const j: any = await r.json().catch(() => ({}));
     if (!r.ok) return NextResponse.json({ erro: r.status === 401 ? "O Brain recusou o token (BRAIN_WEB_TOKEN)." : `O Brain respondeu com erro ${r.status}.` }, { status: 502 });
-    return NextResponse.json({ resposta: j?.reply ?? "O Brain não respondeu." });
+    return NextResponse.json({ resposta: j?.reply ?? "O braIAn não respondeu." });
   } catch (err) {
     const tempo = (err as Error)?.name === "TimeoutError";
-    return NextResponse.json({ erro: tempo ? "O Brain demorou demais para responder. Tente de novo." : "Não foi possível falar com o Brain." }, { status: 504 });
+    return NextResponse.json({ erro: tempo ? "O braIAn demorou demais para responder. Tente de novo." : "Não foi possível falar com o braIAn." }, { status: 504 });
   }
 }

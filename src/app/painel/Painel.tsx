@@ -218,7 +218,7 @@ function BrainModal({ onClose, perguntaInicial = "" }: { onClose: () => void; pe
       <div className="cf-bx-cab">
         <span className="cf-bx-av"><Robo t={40} /></span>
         <div className="cf-bx-tit">
-          <h2 id="brain-tit">Casa Forte Brain</h2>
+          <h2 id="brain-tit">braIAn</h2>
           <p><i className={`cf-bx-pt ${pronto ? "on" : ""}`} />{!estado ? "Conectando…" : pronto ? "Online · assistente do financeiro" : "Em integração"}</p>
         </div>
         {msgs.length > 0 && <button className="cf-bx-ic" onClick={() => setMsgs([])} aria-label="Nova conversa" title="Nova conversa"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>}
@@ -227,8 +227,8 @@ function BrainModal({ onClose, perguntaInicial = "" }: { onClose: () => void; pe
 
       <div className="cf-bx-corpo" aria-live="polite">
         {estado && !pronto && <div className="cf-bx-aviso"><Icone n="escudo" t={18} /><div>{!estado.configurado
-          ? <><b>O Brain ainda não está ligado.</b> Falta configurar a conexão no Railway (BRAIN_URL e BRAIN_WEB_TOKEN).</>
-          : <><b>Seu usuário ainda não está liberado no Brain.</b> Peça para incluir o seu celular em BRAIN_USUARIOS.</>}</div></div>}
+          ? <><b>O braIAn ainda não está ligado.</b> Falta configurar a conexão no Railway (BRAIN_URL e BRAIN_WEB_TOKEN).</>
+          : <><b>Seu usuário ainda não está liberado no braIAn.</b> Peça para incluir o seu celular em BRAIN_USUARIOS.</>}</div></div>}
 
         {!msgs.length && <section className="cf-bx-ola">
           <Robo t={168} className="cf-bx-robo" />
@@ -253,11 +253,11 @@ function BrainModal({ onClose, perguntaInicial = "" }: { onClose: () => void; pe
       <div className="cf-bx-rod">
         {pedeConfirmacao && <div className="cf-bx-conf"><button className="sim" onClick={() => enviar("Confirmo")}>Confirmo</button><button onClick={() => enviar("Cancelar")}>Cancelar</button></div>}
         <form className="cf-bx-form" onSubmit={(e) => { e.preventDefault(); enviar(texto); }}>
-          <textarea ref={campo} rows={1} value={texto} disabled={!pronto} placeholder={pronto ? "Pergunte ao Brain…" : "Indisponível"} aria-label="Mensagem para o Brain"
+          <textarea ref={campo} rows={1} value={texto} disabled={!pronto} placeholder={pronto ? "Pergunte ao braIAn…" : "Indisponível"} aria-label="Mensagem para o braIAn"
             onChange={(e) => setTexto(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); enviar(texto); } }} />
           <button type="submit" aria-label="Enviar" disabled={!pronto || pensando || !texto.trim()}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg></button>
         </form>
-        <p className="cf-bx-nota">O Brain pode errar. Confira valores importantes no Sienge.</p>
+        <p className="cf-bx-nota">O braIAn pode errar. Confira valores importantes no Sienge.</p>
       </div>
     </div>
   </div>;
@@ -901,7 +901,7 @@ export default function Painel() {
       <nav className="cf-side-nav">{ABAS.map(([k, r, i]) => <button key={k} className={aba === k ? "ativo" : ""} aria-current={aba === k ? "page" : undefined} onClick={() => ir(k)}><Icone n={i} /> {r}</button>)}</nav>
       <button className="cf-side-brain" onClick={() => setBrain(true)}>
         <span className="cf-brain-orb pequeno"><Robo t={34} /></span>
-        <span><b>Casa Forte Brain</b><small>Assistente com IA</small></span>
+        <span><b>braIAn</b><small>Assistente com IA da Casa Forte</small></span>
       </button>
       <form className="cf-side-sair" action="/api/logout" method="post"><button type="submit">Sair</button></form>
     </aside>
@@ -909,7 +909,7 @@ export default function Painel() {
       <div className="cf-top-in">
         <img className="cf-top-logo" src="/marca/logo-claro.png" alt="Casa Forte" width={600} height={421} />
         <span className="cf-top-tit">Financeiro</span>
-        <button className="cf-top-brain" onClick={() => setBrain(true)} aria-label="Casa Forte Brain"><Robo t={22} /> Brain</button>
+        <button className="cf-top-brain" onClick={() => setBrain(true)} aria-label="braIAn"><Robo t={22} /> braIAn</button>
         <form className="cf-top-sair" action="/api/logout" method="post"><button type="submit" aria-label="Sair">Sair</button></form>
       </div>
       <nav className="cf-nav" aria-label="Seções">{ABAS.map(([k, r, i]) => <button key={k} className={aba === k ? "ativo" : ""} aria-current={aba === k ? "page" : undefined} onClick={() => ir(k)}><Icone n={i} t={16} /> {r}</button>)}</nav>
@@ -918,7 +918,7 @@ export default function Painel() {
       <div className="cf-comando">
         <button className="cf-comando-in" onClick={() => setBrain(true)}>
           <Robo t={24} className="cf-comando-robo" />
-          <span>Pergunte ao Casa Forte Brain… <em>ex.: “quem está com mais de 15 dias de atraso?”</em></span>
+          <span>Pergunte ao braIAn… <em>ex.: “quem está com mais de 15 dias de atraso?”</em></span>
           <kbd>⌘K</kbd>
         </button>
       </div>

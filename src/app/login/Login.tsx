@@ -32,7 +32,7 @@ export default function Login() {
       <main className="lg-card">
         <img className="lg-logo" src="/marca/logo-claro.png" alt="Casa Forte Construtora" width={600} height={421} />
         <h1>Financeiro</h1>
-        <p className="lg-sub">Cobrança, inadimplência, fluxo de caixa e o Casa Forte Brain.</p>
+        <p className="lg-sub">Cobrança, inadimplência, fluxo de caixa e o braIAn.</p>
         <form onSubmit={entrar} noValidate>
           <label className="lg-campo">
             <span>Usuário</span>

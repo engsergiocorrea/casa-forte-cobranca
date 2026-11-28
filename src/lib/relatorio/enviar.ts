@@ -63,7 +63,7 @@ export async function enviarRelatorioDia(data: string, modo: "auto" | "manual", 
     // passam pela allowlist de clientes — só pelas travas-mestras.
     const bloqueio = !e.OUTBOUND_MESSAGING_ENABLED ? "MASTER_SWITCH_OFF" : e.WHATSAPP_DRY_RUN ? "DRY_RUN" : null;
     if (bloqueio) { await marcar("BLOQUEADA", { motivo: bloqueio }); base.destinatarios.push({ destino: mascara(destino), status: "BLOQUEADA", detalhe: bloqueio }); continue; }
-    const r = await evolutionSendDocument({ to: destino, mediaUrl: pdf, fileName: `relatorio-casa-forte-${data}.pdf`, caption: legenda });
+    const r = await evolutionSendDocument({ to: destino, mediaUrl: pdf, fileName: `relatorio-casa-forte-${data}.pdf`, caption: legenda, origem: "financeiro:relatorio", modelo: { nome: "relatorio_diretoria", campos: { titulo: "diário da cobrança", data } } });
     if (r.success) { await marcar("ENVIADA", { canal: "evolution", providerMessageId: r.messageId, enviadaEm: new Date() }); base.enviado = true; base.destinatarios.push({ destino: mascara(destino), status: "ENVIADA" }); }
     else {
       const incerto = String(r.error ?? "").startsWith("Conexão Evolution");

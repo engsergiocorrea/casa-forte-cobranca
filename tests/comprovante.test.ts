@@ -109,7 +109,7 @@ describe("confirmação — envio texto × PDF", () => {
     const d = deps(); const gerarPdf = vi.fn();
     const r = await enviarConfirmacao({ ...base, pdfEnabled: false, gerarPdf }, d);
     expect(r.via).toBe("text");
-    expect(d.sendText).toHaveBeenCalledWith({ to: base.to, text: "msg" });
+    expect(d.sendText).toHaveBeenCalledWith(expect.objectContaining({ to: base.to, text: "msg" }));
     expect(d.sendDocument).not.toHaveBeenCalled();
     expect(gerarPdf).not.toHaveBeenCalled();
   });
@@ -118,7 +118,7 @@ describe("confirmação — envio texto × PDF", () => {
     const r = await enviarConfirmacao({ ...base, pdfEnabled: true, gerarPdf: async () => new Uint8Array([37, 80, 68, 70]) }, d);
     expect(r.via).toBe("document");
     expect(d.sendText).not.toHaveBeenCalled();
-    expect(d.sendDocument).toHaveBeenCalledWith({ to: base.to, mediaUrl: Buffer.from("%PDF").toString("base64"), fileName: "c.pdf", caption: "msg" });
+    expect(d.sendDocument).toHaveBeenCalledWith(expect.objectContaining({ to: base.to, mediaUrl: Buffer.from("%PDF").toString("base64"), fileName: "c.pdf", caption: "msg" }));
   });
   it("falha na GERAÇÃO → cai para sendText e informa o erro", async () => {
     const d = deps();

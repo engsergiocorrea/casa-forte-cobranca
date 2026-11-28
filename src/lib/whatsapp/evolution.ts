@@ -1,3 +1,4 @@
+import { canalWhatsApp, enviarPelaCentral, type ModeloCentral } from "./central";
 import { env } from "../env";
 import { toBrazilE164 } from "../safety";
 
@@ -85,16 +86,46 @@ export async function evolutionNumberExists(to: string): Promise<boolean | null>
   } catch { return null; }
 }
 
-export function evolutionSendText(params: { to: string; text: string }): Promise<EvolutionResult> {
+// Com o canal "meta" (Portal → WhatsApp), estes dois envios passam pela central.
+// `modelo` é o modelo aprovado usado quando a pessoa não falou com o número nas
+// últimas 24h; sem ele, vai o "aviso_interno" (Financeiro) com o texto.
+export async function evolutionSendText(params: { to: string; text: string; modelo?: ModeloCentral; origem?: string }): Promise<EvolutionResult> {
   const number = toEvolutionNumber(params.to);
-  if (!numeroValido(number)) return Promise.resolve({ success: false, messageId: null, error: "Telefone inválido." });
+  if (!numeroValido(number)) return { success: false, messageId: null, error: "Telefone inválido." };
+  if ((await canalWhatsApp()) === "meta") {
+    return enviarPelaCentral({ para: number, texto: params.text, origem: params.origem ?? "financeiro", modelo: params.modelo ?? avisoPadrao(params.text) });
+  }
   return post("/message/sendText/{instance}", { number, text: params.text });
 }
 
+function avisoPadrao(texto: string): ModeloCentral {
+  const plano = texto.replace(/\*/g, "").trim();
+  // Régua de cobrança (textos de canal/modelos.ts): "📅 Vencimento hoje" / "⚠️ Parcela(s) em aberto".
+  const regua = /^(📅|⚠️)/u.exec(plano);
+  if (regua) {
+    const corpo = plano.split("\n").slice(1).join("\n").trim();
+    const nome = (corpo.split(",")[0] ?? "").trim().slice(0, 40) || "Cliente";
+    const parcelas = corpo.split("\n").slice(1).filter((l) => /🏠|📄|📅|💰|🔢|🔗/u.test(l)).join(" · ").slice(0, 900) || "-";
+    return { nome: regua[1] === "📅" ? "lembrete_vencimento" : "cobranca_atraso", campos: { nome, parcelas } };
+  }
+  const [primeira, ...resto] = plano.split("\n");
+  return { nome: "aviso_interno", campos: { assunto: primeira.replace(/^\W+/u, "").trim().slice(0, 60) || "Financeiro", texto: (resto.join(" ").trim() || plano).slice(0, 900), quem: "Financeiro" } };
+}
+
 // `mediaUrl` vai no campo `media` da Evolution: aceita URL pública OU base64 puro.
-export function evolutionSendDocument(params: { to: string; mediaUrl: string; fileName: string; caption?: string }): Promise<EvolutionResult> {
+export async function evolutionSendDocument(params: { to: string; mediaUrl: string; fileName: string; caption?: string; modelo?: ModeloCentral; origem?: string }): Promise<EvolutionResult> {
   const number = toEvolutionNumber(params.to);
-  if (!numeroValido(number)) return Promise.resolve({ success: false, messageId: null, error: "Telefone inválido." });
+  if (!numeroValido(number)) return { success: false, messageId: null, error: "Telefone inválido." };
+  if ((await canalWhatsApp()) === "meta") {
+    const ehUrl = /^https?:\/\//.test(params.mediaUrl);
+    return enviarPelaCentral({
+      para: number,
+      texto: params.caption,
+      documento: ehUrl ? { url: params.mediaUrl, nome: params.fileName, mime: "application/pdf" } : { base64: params.mediaUrl, nome: params.fileName, mime: "application/pdf" },
+      origem: params.origem ?? "financeiro",
+      modelo: params.modelo, // sem modelo: só sai dentro da janela de 24h
+    });
+  }
   return post("/message/sendMedia/{instance}", {
     number, mediatype: "document", mimetype: "application/pdf",
     caption: params.caption ?? "", media: params.mediaUrl, fileName: params.fileName,

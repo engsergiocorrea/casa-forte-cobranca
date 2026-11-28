@@ -171,6 +171,7 @@ export async function runConfirmacoesPagamento(opts: { now?: Date; preview?: boo
     const ultimoPago = brDate(meus.map((i) => i.paidDate).sort().at(-1)!);
     const envio = await enviarConfirmacao({
       to: numero, texto: montar(meus), pdfEnabled: e.PAYMENT_CONFIRMATION_PDF_ENABLED,
+      modelo: { nome: "pagamento_confirmado", campos: { nome, descricao: `${meus.length > 1 ? `${meus.length} parcelas` : "parcela"} de ${meus[0].imovel}`, valor: fmtBRL(meus.reduce((t, i) => t + Number(i.valor), 0)) } },
       fileName: nomeArquivoComprovante(meus[0].contrato, ultimoPago),
       gerarPdf: async () => {
         const mapa = await dadosRecibo();

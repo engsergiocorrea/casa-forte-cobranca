@@ -106,7 +106,7 @@ export async function confirmacaoManual(p: { customerId: number; itens: ItemRef[
   let envio;
   try {
     const recibo = await reciboPdf(prontas);
-    envio = await enviarConfirmacao({ to: telefone, texto, pdfEnabled: true, fileName: recibo.nomeArquivo ?? "Comprovante Casa Forte.pdf", gerarPdf: async () => { if (!recibo.pdf) throw new Error("sem recibo"); return recibo.pdf; } });
+    envio = await enviarConfirmacao({ to: telefone, texto, pdfEnabled: true, modelo: { nome: "pagamento_confirmado", campos: { nome: nomeMsg, descricao: `${prontas.length > 1 ? `${prontas.length} parcelas` : "parcela"} de ${imovelDe(prontas[0].billId)}`, valor: brl(prontas.reduce((t, x) => t + Number(x.liquido), 0)) } }, fileName: recibo.nomeArquivo ?? "Comprovante Casa Forte.pdf", gerarPdf: async () => { if (!recibo.pdf) throw new Error("sem recibo"); return recibo.pdf; } });
   } catch (err) {
     const msg = String((err as Error)?.message ?? err).slice(0, 300);
     await db.paymentConfirmation.updateMany({ where, data: { status: "ERROR", detail: `MANUAL: ${msg}` } }).catch(() => null);

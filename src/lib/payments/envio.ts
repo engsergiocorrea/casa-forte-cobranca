@@ -19,22 +19,24 @@ export type EnvioParams = {
   pdfEnabled: boolean;
   fileName: string;
   gerarPdf: () => Promise<Uint8Array>;
+  /** Modelo aprovado (Meta) para fora da janela de 24h. */
+  modelo?: { nome: string; campos: Record<string, string> };
 };
 
 export type EnvioResultado = { result: EvolutionResult; via: "text" | "document"; pdfErro?: string };
 
 export async function enviarConfirmacao(p: EnvioParams, deps: EnvioDeps = { sendText: evolutionSendText, sendDocument: evolutionSendDocument }): Promise<EnvioResultado> {
-  if (!p.pdfEnabled) return { result: await deps.sendText({ to: p.to, text: p.texto }), via: "text" };
+  if (!p.pdfEnabled) return { result: await deps.sendText({ to: p.to, text: p.texto, modelo: p.modelo, origem: "financeiro:pagamento" }), via: "text" };
 
   let pdf: Uint8Array;
   try {
     pdf = await p.gerarPdf();
   } catch (err: any) {
     const pdfErro = String(err?.message ?? err).slice(0, 150);
-    return { result: await deps.sendText({ to: p.to, text: p.texto }), via: "text", pdfErro };
+    return { result: await deps.sendText({ to: p.to, text: p.texto, modelo: p.modelo, origem: "financeiro:pagamento" }), via: "text", pdfErro };
   }
 
   // Evolution aceita URL ou base64 puro em `media`.
-  const result = await deps.sendDocument({ to: p.to, mediaUrl: Buffer.from(pdf).toString("base64"), fileName: p.fileName, caption: p.texto });
+  const result = await deps.sendDocument({ to: p.to, mediaUrl: Buffer.from(pdf).toString("base64"), fileName: p.fileName, caption: p.texto, modelo: p.modelo, origem: "financeiro:pagamento" });
   return { result, via: "document" };
 }
